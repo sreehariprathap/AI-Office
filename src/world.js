@@ -133,6 +133,63 @@ export function layoutFloor(office, agents) {
   return { W, H, rooms, corridor, desks, pos, portal, console: console_, table: { x: tableX, y: tableY, w: tableW, h: 22 }, CELL_W, CELL_H }
 }
 
+// ---------------------------------------------------------------- town layout
+// The map is derived, never stored: give it the buildings and it returns the
+// whole scene. Same contract as layoutFloor one level up.
+const LOT_W = 200
+const LOT_H = 160
+const LOT_GAP = 44
+const STREET_H = 130
+const TOWN_PAD = 70
+
+export function layoutTown(buildings) {
+  // Alternate rows so adding a building keeps both sides of the street even.
+  const top = buildings.filter((_, i) => i % 2 === 0)
+  const bottom = buildings.filter((_, i) => i % 2 === 1)
+  const cols = Math.max(top.length, bottom.length, 1)
+
+  const W = TOWN_PAD * 2 + cols * LOT_W + (cols - 1) * LOT_GAP
+  const H = TOWN_PAD * 2 + LOT_H * 2 + STREET_H
+  const lotX = (i) => TOWN_PAD + i * (LOT_W + LOT_GAP)
+  const bottomY = TOWN_PAD + LOT_H + STREET_H
+
+  const lots = [
+    ...top.map((building, i) => ({ building, x: lotX(i), y: TOWN_PAD, w: LOT_W, h: LOT_H, row: 0 })),
+    ...bottom.map((building, i) => ({ building, x: lotX(i), y: bottomY, w: LOT_W, h: LOT_H, row: 1 })),
+  ]
+
+  const street = {
+    x: 0,
+    y: TOWN_PAD + LOT_H,
+    w: W,
+    h: STREET_H,
+    lamps: Array.from({ length: cols + 1 }, (_, i) => ({
+      x: TOWN_PAD - LOT_GAP / 2 + i * (LOT_W + LOT_GAP),
+      y: TOWN_PAD + LOT_H + STREET_H / 2,
+    })),
+  }
+
+  // Seeded from the town itself: varied, but stable across renders and viewers.
+  let seed = hash(buildings.map((b) => b.slug).join('|') || 'empty-town')
+  const next = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    return seed / 4294967296
+  }
+  const TYPES = ['tree', 'tree', 'planter', 'bench', 'fence']
+  const scenery = []
+  for (let i = 0; i < cols * 3 + 4; i++) {
+    const onTopVerge = next() < 0.5
+    scenery.push({
+      type: TYPES[Math.floor(next() * TYPES.length)],
+      x: Math.round(next() * (W - TOWN_PAD)) + TOWN_PAD / 2,
+      y: Math.round(onTopVerge ? street.y - 14 - next() * 18 : street.y + street.h + 4 + next() * 18),
+      variant: Math.floor(next() * 3),
+    })
+  }
+
+  return { W, H, lots, street, scenery }
+}
+
 export const timeAgo = (ts) => {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000))
   if (s < 60) return `${s}s ago`
