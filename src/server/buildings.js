@@ -114,3 +114,6 @@ export function buildingSummary(world, building) {
     stats: Object.fromEntries(STATUSES.map((s) => [s, count(s)])),
   }
 }
+
+/** A building may only become a landmark while it holds no floors. */
+export const canBecomeLandmark = (world, building) => floorsOf(world, building).length === 0

@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createBuilding, buildingForSource, ensureBuildings, floorsOf, buildingBySlug, buildingSummary } from '../src/server/buildings.js'
+import {
+  createBuilding, buildingForSource, ensureBuildings, floorsOf, buildingBySlug, buildingSummary, canBecomeLandmark,
+} from '../src/server/buildings.js'
 import { buildSeed } from '../src/server/seed.js'
 
 const emptyWorld = (over = {}) => ({ buildings: [], offices: [], agents: [], sources: [], ...over })
@@ -84,6 +86,16 @@ test('buildingSummary rolls floor and agent counts up from offices', () => {
   assert.equal(view.online, 2, 'offline agents are not online')
   assert.equal(view.stats.error, 1)
   assert.equal(view.floors[0].numberOfAgents, 2)
+})
+
+test('a populated workspace cannot become a landmark; an empty one can', () => {
+  const world = emptyWorld({ offices: [{ id: 'o1', slug: 'a' }] })
+  ensureBuildings(world)
+  const populated = world.buildings[0]
+  assert.equal(canBecomeLandmark(world, populated), false)
+
+  const empty = createBuilding(world, { name: 'Gym', sprite: 'gym' })
+  assert.equal(canBecomeLandmark(world, empty), true)
 })
 
 test('buildSeed produces buildings and every office belongs to one', () => {

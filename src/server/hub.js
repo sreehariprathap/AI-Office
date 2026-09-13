@@ -6,7 +6,10 @@
 import { randomUUID } from 'node:crypto'
 import { after } from 'next/server'
 import { buildSeed } from './seed.js'
-import { ensureBuildings, buildingSummary } from './buildings.js'
+import {
+  ensureBuildings, buildingSummary, createBuilding, buildingBySlug, floorsOf, canBecomeLandmark,
+  BUILDING_KINDS, BUILDING_SPRITES,
+} from './buildings.js'
 import { withWorld, storageKind } from './store.js'
 import {
   publicSource, syncSource, addSource, updateSource, removeSource, ensureEnvSource, fetchSnapshot, applySnapshot,
@@ -409,6 +412,50 @@ route('POST', '/api/offices/:slug/agents', ({ world, can, params, body }) => {
   const existing = body.name && world.agents.find((a) => a.officeId === o.id && a.name === body.name)
   const agent = upsertAgent(world, o, body, existing)
   return [existing ? 200 : 201, q(world).agentView(agent)]
+})
+
+// ---------------------------------------------------------------- buildings
+const buildingOr404 = (world, slug) => buildingBySlug(world, slug) || fail(404, 'building not found')
+
+route('GET', '/api/buildings', ({ world }) => world.buildings.map((b) => q(world).buildingView(b)))
+
+route('POST', '/api/buildings', ({ world, admin, body }) => {
+  if (!admin) fail(401, 'x-hub-token required')
+  if (!body.name) fail(400, 'name required')
+  if (body.kind && !BUILDING_KINDS.includes(body.kind)) fail(400, `kind must be one of ${BUILDING_KINDS.join(', ')}`)
+  if (body.sprite && !BUILDING_SPRITES.includes(body.sprite)) fail(400, `sprite must be one of ${BUILDING_SPRITES.join(', ')}`)
+  const building = createBuilding(world, body)
+  return [201, q(world).buildingView(building)]
+})
+
+route('GET', '/api/buildings/:slug', ({ world, params }) =>
+  q(world).buildingView(buildingOr404(world, params.slug)))
+
+route('PATCH', '/api/buildings/:slug', ({ world, admin, params, body }) => {
+  if (!admin) fail(401, 'x-hub-token required')
+  const building = buildingOr404(world, params.slug)
+  // Source-linked buildings stay editable on purpose: the snapshot protocol
+  // has no concept of buildings, so nothing upstream will overwrite this.
+  if (body.kind === 'landmark' && !canBecomeLandmark(world, building)) {
+    fail(400, `"${building.name}" still holds floors — move or delete them before making it a landmark`)
+  }
+  if (body.kind && !BUILDING_KINDS.includes(body.kind)) fail(400, `kind must be one of ${BUILDING_KINDS.join(', ')}`)
+  if (body.sprite && !BUILDING_SPRITES.includes(body.sprite)) fail(400, `sprite must be one of ${BUILDING_SPRITES.join(', ')}`)
+  for (const k of ['name', 'kind', 'sprite', 'theme', 'description']) {
+    if (body[k] !== undefined) building[k] = k === 'name' ? String(body[k]).slice(0, 40) : body[k]
+  }
+  return q(world).buildingView(building)
+})
+
+route('DELETE', '/api/buildings/:slug', ({ world, admin, params }) => {
+  if (!admin) fail(401, 'x-hub-token required')
+  const building = buildingOr404(world, params.slug)
+  const floors = floorsOf(world, building)
+  if (floors.length) {
+    fail(409, `"${building.name}" still holds ${floors.length} floor(s): ${floors.map((f) => f.name).join(', ')} — delete or move them first`)
+  }
+  world.buildings = world.buildings.filter((b) => b.id !== building.id)
+  return { ok: true }
 })
 
 route('GET', '/api/agents/:id', ({ world, params }) => {
