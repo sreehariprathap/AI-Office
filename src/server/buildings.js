@@ -117,3 +117,21 @@ export function buildingSummary(world, building) {
 
 /** A building may only become a landmark while it holds no floors. */
 export const canBecomeLandmark = (world, building) => floorsOf(world, building).length === 0
+
+/**
+ * Which building a new or moved floor belongs to. Returns `{ building }` or
+ * `{ error }` — the caller decides the HTTP status, keeping this module free
+ * of HTTP concerns.
+ */
+export function resolveBuilding(world, slug) {
+  if (slug) {
+    const building = buildingBySlug(world, slug)
+    if (!building) return { error: `building "${slug}" not found` }
+    if (building.kind === 'landmark') return { error: `"${building.name}" is a landmark and cannot hold floors` }
+    return { building }
+  }
+  const workspaces = world.buildings.filter((b) => b.kind === 'workspace')
+  if (workspaces.length === 1) return { building: workspaces[0] }
+  if (!workspaces.length) return { error: 'no workspace building exists — create one first' }
+  return { error: `buildingSlug required: ${workspaces.map((b) => b.slug).join(', ')}` }
+}

@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createBuilding, buildingForSource, ensureBuildings, floorsOf, buildingBySlug, buildingSummary, canBecomeLandmark,
+  resolveBuilding,
 } from '../src/server/buildings.js'
 import { buildSeed } from '../src/server/seed.js'
 
@@ -96,6 +97,26 @@ test('a populated workspace cannot become a landmark; an empty one can', () => {
 
   const empty = createBuilding(world, { name: 'Gym', sprite: 'gym' })
   assert.equal(canBecomeLandmark(world, empty), true)
+})
+
+test('resolveBuilding falls back to the only workspace when no slug is given', () => {
+  const world = emptyWorld({ offices: [{ id: 'o1', slug: 'a' }] })
+  ensureBuildings(world)
+  assert.equal(resolveBuilding(world, undefined).building.id, world.buildings[0].id)
+})
+
+test('resolveBuilding demands a slug once there are several workspaces', () => {
+  const world = emptyWorld({ offices: [{ id: 'o1', slug: 'a' }] })
+  ensureBuildings(world)
+  createBuilding(world, { name: 'Research Lab', sprite: 'lab' })
+  assert.match(resolveBuilding(world, undefined).error, /buildingSlug required/)
+})
+
+test('resolveBuilding refuses landmarks and unknown slugs', () => {
+  const world = emptyWorld()
+  const cafe = createBuilding(world, { name: 'Cafe', kind: 'landmark', sprite: 'cafe' })
+  assert.match(resolveBuilding(world, cafe.slug).error, /landmark/)
+  assert.match(resolveBuilding(world, 'nope').error, /not found/)
 })
 
 test('buildSeed produces buildings and every office belongs to one', () => {

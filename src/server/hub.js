@@ -8,7 +8,7 @@ import { after } from 'next/server'
 import { buildSeed } from './seed.js'
 import {
   ensureBuildings, buildingSummary, createBuilding, buildingBySlug, floorsOf, canBecomeLandmark,
-  BUILDING_KINDS, BUILDING_SPRITES,
+  BUILDING_KINDS, BUILDING_SPRITES, resolveBuilding,
 } from './buildings.js'
 import { withWorld, storageKind } from './store.js'
 import {
@@ -347,12 +347,15 @@ route('GET', '/api/offices', ({ world, admin, url }) => {
 route('POST', '/api/offices', ({ world, admin, body }) => {
   if (!admin) fail(401, 'x-hub-token required')
   if (!body.name) fail(400, 'name required')
+  const target = resolveBuilding(world, body.buildingSlug)
+  if (target.error) fail(400, target.error)
   const { officeBySlug, officeView } = q(world)
   let slug = slugify(body.slug || body.name)
   while (officeBySlug(slug)) slug += '-' + Math.floor(Math.random() * 90 + 10)
   const office = {
     id: randomUUID(),
     slug,
+    buildingId: target.building.id,
     name: String(body.name).slice(0, 40),
     theme: THEMES.includes(body.theme) ? body.theme : rnd(THEMES),
     floor: ['carpet', 'tile', 'checker', 'wood'].includes(body.floor) ? body.floor : 'carpet',
@@ -378,6 +381,11 @@ route('PATCH', '/api/offices/:slug', ({ world, admin, params, body }) => {
   const o = officeOr404(world, params.slug)
   if (!admin) fail(401, 'x-hub-token required')
   notManaged(o)
+  if (body.buildingSlug !== undefined) {
+    const moved = resolveBuilding(world, body.buildingSlug)
+    if (moved.error) fail(400, moved.error)
+    o.buildingId = moved.building.id
+  }
   for (const k of ['name', 'description', 'floor']) if (body[k] !== undefined) o[k] = body[k]
   if (THEMES.includes(body.theme)) o.theme = body.theme
   return q(world).officeView(o, { withKey: true })
