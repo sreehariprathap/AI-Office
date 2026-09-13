@@ -184,3 +184,110 @@ export function ConnectModal({ api, agents, offices, fromId, onClose }) {
     </Modal>
   )
 }
+
+export function SourcesModal({ api, sources, offices, onClose, onOpenOffice }) {
+  const [f, setF] = useState({ name: '', url: '', token: '', intervalSec: 10 })
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  const run = async (fn) => {
+    setErr('')
+    setBusy(true)
+    try {
+      await fn()
+    } catch (x) {
+      setErr(x.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const ago = (ts) => (ts ? `${Math.max(0, Math.round((Date.now() - ts) / 1000))}s ago` : 'never')
+  return (
+    <Modal title="Connected systems" onClose={onClose}>
+      <div className="form">
+        <p className="muted small">
+          A source is any app exposing an <code>agent-hq/v1</code> snapshot endpoint. The hub polls it and mirrors its offices, agents,
+          connections and messages. Synced agents are read-only here: the source owns them.
+        </p>
+        {sources.length === 0 && <p className="muted">No systems connected yet.</p>}
+        <ul className="sources">
+          {sources.map((s) => (
+            <li key={s.id} className={`src s-${s.status}`}>
+              <div className="row gap">
+                <i className="dot" />
+                <b>{s.name}</b>
+                <span className="muted small">{s.status}</span>
+                <span className="muted small" style={{ marginLeft: 'auto' }}>
+                  synced {ago(s.lastSyncAt)}
+                </span>
+              </div>
+              <div className="mono small muted ellipsis">{s.url}</div>
+              {s.counts && (
+                <div className="small">
+                  {s.counts.offices} offices · {s.counts.agents} agents · {s.counts.connections} links · every {s.intervalSec}s
+                </div>
+              )}
+              {s.lastError && <div className="error small">{s.lastError}</div>}
+              <div className="row gap wrap">
+                {offices
+                  .filter((o) => o.source === s.id)
+                  .map((o) => (
+                    <button key={o.id} type="button" className="small" onClick={() => (onOpenOffice(o.id), onClose())}>
+                      {o.name} →
+                    </button>
+                  ))}
+              </div>
+              <div className="row gap">
+                <button type="button" disabled={busy} onClick={() => run(() => api('POST', `/api/sources/${s.id}/sync`))}>
+                  Sync now
+                </button>
+                <button type="button" disabled={busy} onClick={() => run(() => api('PATCH', `/api/sources/${s.id}`, { enabled: !s.enabled }))}>
+                  {s.enabled ? 'Pause' : 'Resume'}
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={busy}
+                  onClick={() => confirm(`Disconnect ${s.name}? Its offices disappear from the hub (nothing changes in the source).`) && run(() => api('DELETE', `/api/sources/${s.id}`))}
+                >
+                  Disconnect
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <form
+          className="form flush"
+          onSubmit={(e) => {
+            e.preventDefault()
+            run(async () => {
+              await api('POST', '/api/sources', { ...f, intervalSec: Number(f.intervalSec) || 10 })
+              setF({ name: '', url: '', token: '', intervalSec: 10 })
+            })
+          }}
+        >
+          <h3>Connect a system</h3>
+          <label>Name</label>
+          <input value={f.name} onChange={set('name')} placeholder="AI Workforce" />
+          <label>Snapshot URL</label>
+          <input required value={f.url} onChange={set('url')} placeholder="https://your-backend.onrender.com/api/office/snapshot" />
+          <div className="grid2">
+            <div>
+              <label>Feed token</label>
+              <input type="password" value={f.token} onChange={set('token')} placeholder="OFFICE_FEED_TOKEN" />
+            </div>
+            <div>
+              <label>Poll every (s)</label>
+              <input type="number" min="3" value={f.intervalSec} onChange={set('intervalSec')} />
+            </div>
+          </div>
+          {err && <p className="error">{err}</p>}
+          <button className="primary" disabled={busy}>
+            Connect
+          </button>
+        </form>
+      </div>
+    </Modal>
+  )
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { lookOf, STATUS_COLORS, timeAgo, compact } from '../world.js'
 import { Portrait } from '../sprites.jsx'
 
@@ -135,6 +135,12 @@ export function AgentPanel({ agent, agents, offices, connections, messages, api,
         </div>
       )}
 
+      {agent.external && <MetaDetails meta={agent.meta} />}
+
+      {agent.external ? (
+        <p className="synced-note">⇅ Synced from <b>{agent.source}</b>. Read-only here; manage this agent in its own app.</p>
+      ) : (
+      <>
       <h3>Controls</h3>
       <div className="row gap wrap">
         <select value={agent.status} onChange={(e) => patch({ status: e.target.value })}>
@@ -158,6 +164,8 @@ export function AgentPanel({ agent, agents, offices, connections, messages, api,
           Fire
         </button>
       </div>
+      </>
+      )}
 
       <h3>Connections ({links.length})</h3>
       <ul className="links-list">
@@ -174,16 +182,17 @@ export function AgentPanel({ agent, agents, offices, connections, messages, api,
               </button>
               {cross && <span className="badge bridge">{offices.find((o) => o.id === other.officeId)?.name}</span>}
               {c.label && <span className="muted small">“{c.label}”</span>}
-              <button className="x" title="Remove" onClick={() => run(api('DELETE', `/api/connections/${c.id}`))}>
+              {!c.external && <button className="x" title="Remove" onClick={() => run(api('DELETE', `/api/connections/${c.id}`))}>
                 ×
-              </button>
+              </button>}
             </li>
           )
         })}
         {!links.length && <li className="muted">No connections yet.</li>}
       </ul>
 
-      <h3>Talk to {agent.name}</h3>
+      {!agent.external && <h3>Talk to {agent.name}</h3>}
+      {!agent.external && (
       <form
         className="row gap"
         onSubmit={(e) => {
@@ -195,6 +204,8 @@ export function AgentPanel({ agent, agents, offices, connections, messages, api,
         <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Send an instruction (lands in its inbox)…" />
         <button className="primary">Send</button>
       </form>
+      )}
+      {agent.external && <h3>Recent activity</h3>}
       {err && <p className="error">{err}</p>}
 
       <ul className="feed compact">
@@ -211,6 +222,28 @@ export function AgentPanel({ agent, agents, offices, connections, messages, api,
         ))}
       </ul>
     </div>
+  )
+}
+
+// Source-provided details (e.g. seed capital, book value, state) — rendered generically.
+function MetaDetails({ meta }) {
+  if (!meta) return null
+  const label = (k) => k.replace(/([A-Z])/g, ' $1').toLowerCase()
+  const fmt = (v) => (typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v))
+  const entries = Object.entries(meta).filter(([k, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object' && k !== 'description')
+  return (
+    <>
+      <h3>Details</h3>
+      {meta.description && <p className="small muted">{meta.description}</p>}
+      <dl className="kv">
+        {entries.map(([k, v]) => (
+          <Fragment key={k}>
+            <dt>{label(k)}</dt>
+            <dd>{fmt(v)}</dd>
+          </Fragment>
+        ))}
+      </dl>
+    </>
   )
 }
 

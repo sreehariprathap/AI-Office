@@ -7,8 +7,8 @@
   --muted: #a39580;
   --accent: #79e0a0;
   --danger: #ff6b6b;
-  --pixel: 'Silkscreen', 'Courier New', monospace;
-  --body: 'VT323', 'Courier New', monospace;
+  --pixel: var(--font-pixel), 'Courier New', monospace;
+  --body: var(--font-body), 'Courier New', monospace;
   color-scheme: dark;
 }
 
@@ -90,7 +90,8 @@ button.x:hover { color: var(--danger); }
 .live.on::before { content: '● '; animation: blink 1.4s steps(2) infinite; }
 
 /* ------------------------------------------------ stage */
-.stage { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; min-height: 0; }
+.stage { display: grid; grid-template-rows: auto auto 1fr auto; min-width: 0; min-height: 0; }
+.stage:not(:has(> .banner)) { grid-template-rows: auto 1fr auto; }
 .toolbar { display: flex; align-items: center; gap: 16px; padding: 10px 14px; border-bottom: 2px solid #000; flex-wrap: wrap; background: var(--panel); }
 .toolbar .title { display: flex; align-items: baseline; gap: 12px; margin-right: auto; min-width: 0; }
 .toolbar h1 { font-family: var(--pixel); font-size: 20px; margin: 0; color: var(--accent); }
@@ -279,3 +280,45 @@ pre.json { max-height: 420px; overflow: auto; color: #cfe3ff; border: 2px solid 
   .side { border-left: 0; border-top: 4px solid #000; }
   .hud { display: none; }
 }
+
+/* ------------------------------------------------ connected sources */
+.sources-btn { font-family: var(--pixel); font-size: 12px; padding: 2px 8px; }
+.sources-btn.bad { border-color: var(--danger); color: var(--danger); }
+.badge.synced { color: #7fb4ff; border-color: #7fb4ff55; }
+.synced-note { background: #7fb4ff14; border: 1px dashed #7fb4ff66; padding: 6px 8px; margin: 14px 0 0; }
+.sources { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 8px; }
+.src { background: var(--panel2); border: 2px solid var(--line); padding: 8px; display: grid; gap: 4px; }
+.src .dot { width: 9px; height: 9px; background: var(--muted); display: inline-block; }
+.src.s-ok .dot { background: #5ee08a; }
+.src.s-error .dot { background: var(--danger); animation: blink 1s steps(2) infinite; }
+.src.s-pending .dot { background: #f2c14e; }
+.src button.small { font-size: 15px; padding: 0 8px; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.form.flush { padding: 0; margin-top: 10px; }
+code { font-family: var(--body); background: #0006; padding: 0 4px; }
+/* Agents away from their desk (meeting/break room) stand close together — name on hover/selection only. */
+.sprite > .tag { opacity: 0; transition: opacity .15s; }
+.sprite:hover > .tag, .sprite.selected > .tag { opacity: 1; }
+
+/* ------------------------------------------------ mock / realtime toggle */
+.mode-toggle { display: flex; border: 2px solid #000; box-shadow: 0 0 0 2px var(--line); }
+.mode-toggle button { font-family: var(--pixel); font-size: 11px; padding: 3px 9px; border: 0; box-shadow: none; background: var(--panel2); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.mode-toggle button.on { color: #0f140f; }
+.mode-toggle button.on:first-child { background: #f2c14e; }
+.mode-toggle button.on:last-child { background: #7fb4ff; }
+.rt-dot { width: 7px; height: 7px; background: #6b7280; display: inline-block; }
+.rt-dot.ok { background: #5ee08a; animation: blink 1.4s steps(2) infinite; }
+.mode-toggle button.on .rt-dot.ok { background: #0f5a2a; }
+.app.mode-mock .toolbar h1::after { content: ' · demo data'; font-size: 11px; color: #f2c14e; }
+.src-chip { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; }
+.src-chip i { width: 8px; height: 8px; background: #f2c14e; display: inline-block; }
+.src-chip.s-ok i { background: #5ee08a; }
+.src-chip.s-error i { background: var(--danger); animation: blink 1s steps(2) infinite; }
+.rt-empty { margin-top: 12vh; max-width: 560px; background: var(--panel); border: 4px solid #000; box-shadow: 0 0 0 2px var(--line), 8px 8px 0 #000; padding: 20px; display: grid; gap: 10px; }
+.rt-empty h2 { color: #7fb4ff; }
+.rt-empty p { margin: 0; }
+.rt-empty ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+
+/* ------------------------------------------------ deployment affordances */
+.banner { background: #5b2a2a; color: #ffd9d9; border-bottom: 2px solid #000; padding: 6px 14px; font-size: 16px; }
+.lock { font-family: var(--pixel); font-size: 11px; padding: 2px 8px; color: #f2c14e; }

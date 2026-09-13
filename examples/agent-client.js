@@ -9,7 +9,7 @@ if (!key) {
   process.exit(1)
 }
 
-const hub = process.env.HUB_URL || 'http://localhost:8787'
+const hub = process.env.HUB_URL || 'http://localhost:3000'
 const agent = await connectAgent({ hub, office, key, name, title: 'Remote Worker', model: 'claude-sonnet-5', host: process.platform + ' · ' + (process.env.USER || 'cli'), skills: ['demo'], heartbeatMs: 5000 })
 console.log(`✓ ${name} joined "${office}" as ${agent.id}`)
 

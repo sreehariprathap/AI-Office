@@ -6,7 +6,7 @@
 //   agent.onMessage((m) => ...)   // instructions sent from the hub UI or other agents
 //   agent.close()
 
-export async function connectAgent({ hub = 'http://localhost:8787', office, key, heartbeatMs = 20000, pollMs = 3000, ...profile }) {
+export async function connectAgent({ hub = 'http://localhost:3000', office, key, heartbeatMs = 20000, pollMs = 3000, ...profile }) {
   const headers = { 'content-type': 'application/json', 'x-office-key': key }
   const call = async (method, path, body) => {
     const r = await fetch(hub + path, { method, headers, body: body ? JSON.stringify(body) : undefined })

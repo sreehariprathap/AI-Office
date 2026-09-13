@@ -140,3 +140,9 @@ export const timeAgo = (ts) => {
 }
 
 export const compact = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n ?? 0))
+
+// Label that fits a desk tag: a source-provided shortName, else the name clipped to ~12 characters.
+export const deskLabel = (agent, max = 12) => {
+  const n = agent.shortName || agent.name || ''
+  return n.length > max ? n.slice(0, max - 1) + '…' : n
+}

@@ -4,20 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n hub,ui -c magenta,cyan \"npm:server\" \"npm:ui\"",
-    "ui": "vite",
-    "server": "node --watch server/index.js",
-    "build": "vite build",
-    "start": "node server/index.js",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "agent:demo": "node examples/agent-client.js"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.2",
-    "vite": "^6.0.7"
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   }
 }

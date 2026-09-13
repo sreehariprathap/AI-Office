@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { layoutFloor, lookOf, themeOf, STATUS_COLORS } from '../world.js'
+import { layoutFloor, lookOf, themeOf, STATUS_COLORS, deskLabel } from '../world.js'
 import { Person, Desk, Chair, Plant, WaterCooler, Vending, Bookshelf, Cabinet, Couch, Window, Board } from '../sprites.jsx'
 
 const KIND_COLORS = { reports_to: '#f2c14e', collab: '#7fb4ff', data: '#5ee08a', bridge: '#ff8ad8' }
@@ -90,8 +90,8 @@ function Sprite({ agent, p, selected, onSelect, atHome }) {
       {p.away && !walking && <text x={28} y={-2} className="zzz">z</text>}
       {selected && <polygon className="pointer" points="10,-16 22,-16 16,-9" fill="#ffe066" stroke="#1a1410" />}
       {!atHome && (
-        <text x={16} y={44} textAnchor="middle" className="tag">
-          {agent.name}
+        <text x={16} y={44} textAnchor="middle" className="tag light">
+          {deskLabel(agent, 10)}
         </text>
       )}
     </g>
@@ -235,7 +235,7 @@ export default function OfficeFloor({ office, agents, connections, messages, off
       {L.rooms
         .filter((r) => r.kind === 'suite')
         .map((r, i) => (
-          <Room key={'s' + i} room={r} theme={theme} label={r.boss ? `BOSS · ${r.boss.name}` : 'BOSS (vacant)'}>
+          <Room key={'s' + i} room={r} theme={theme} label={r.boss ? `BOSS · ${deskLabel(r.boss, 20)}` : 'BOSS (vacant)'}>
             <Bookshelf x={r.x + r.w - 36} y={r.y + 30} />
             <Plant x={r.x + 8} y={r.y + 32} />
             <Plant x={r.x + r.w - 16} y={r.y + r.h - 34} />
@@ -308,9 +308,9 @@ export default function OfficeFloor({ office, agents, connections, messages, off
             <Desk x={d.x + 14} y={d.y + 22} screen={screen} glow={a?.status === 'working'} />
             {a ? (
               <g transform={`translate(${d.x + 37},${d.y + 60})`}>
-                <circle cx={-a.name.length * 2.6 - 6} cy={-3} r={2.5} fill={STATUS_COLORS[a.status]} shapeRendering="auto" />
+                <circle cx={-deskLabel(a).length * 2.6 - 6} cy={-3} r={2.5} fill={STATUS_COLORS[a.status]} shapeRendering="auto" />
                 <text textAnchor="middle" className="tag light">
-                  {a.name}
+                  {deskLabel(a)}
                 </text>
               </g>
             ) : (

@@ -59,7 +59,7 @@ function Building({ office, agents, x, onOpen, activity }) {
   )
 }
 
-export default function Campus({ offices, agents, connections, messages, onOpen, onNewOffice, zoom }) {
+export default function Campus({ offices, agents, connections, messages, onOpen, onNewOffice, lotLabel = '+ BUILD OFFICE', zoom }) {
   const W = Math.max(900, 80 + (offices.length + 1) * (BW + GAP_X))
   const H = 420
   const xs = useMemo(() => Object.fromEntries(offices.map((o, i) => [o.id, 60 + i * (BW + GAP_X)])), [offices])
@@ -189,7 +189,7 @@ export default function Campus({ offices, agents, connections, messages, onOpen,
         <rect x={lotX + BW / 2 - 2} y={GROUND - 70} width={4} height={70} fill="#6e4a2b" />
         <rect x={lotX + 20} y={GROUND - 96} width={BW - 40} height={30} fill="#efe6cf" stroke="#3a2a1a" strokeWidth={2} />
         <text x={lotX + BW / 2} y={GROUND - 77} textAnchor="middle" className="sign big">
-          + BUILD OFFICE
+          {lotLabel}
         </text>
       </g>
 
