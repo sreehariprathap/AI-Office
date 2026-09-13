@@ -44,7 +44,7 @@ const fail = (status, message) => {
 }
 
 // ---------------------------------------------------------------- world
-function initWorld(stored) {
+export function initWorld(stored) {
   const world =
     stored ||
     (process.env.HUB_SEED === 'none' ? { ...emptyWorld(), simulate: false } : { ...buildSeed(), simulate: true })
