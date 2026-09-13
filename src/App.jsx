@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter, useParams } from 'next/navigation'
 import { useHub } from './hub.js'
 import { themeOf, STATUS_COLORS } from './world.js'
+import { resolveOpenPath, crossModeTarget } from './routing.js'
 import TownMap from './components/TownMap.jsx'
 import Building from './components/Building.jsx'
 import OfficeFloor from './components/OfficeFloor.jsx'
@@ -47,11 +49,19 @@ export default function App() {
   // Mock = demo world and hand-made agents. Realtime = only agents mirrored from connected sources.
   const [mode, setModeLocal] = useState(hub.mode)
   useEffect(() => setModeLocal(hub.mode), [hub.mode])
-  const setMode = (m) => {
+  const router = useRouter()
+  // Sets the mode without navigating -- used both by the explicit
+  // MOCK/REALTIME toggle below (which also jumps to the map) and by the
+  // cross-mode-link effect further down (which must NOT navigate away
+  // from the URL a visitor actually followed).
+  const applyMode = (m) => {
     setModeLocal(m)
-    setSelectedId(null)
-    setView('map')
     if (admin) api('POST', '/api/mode', { mode: m }).catch(() => {})
+  }
+  const setMode = (m) => {
+    applyMode(m)
+    setSelectedId(null)
+    router.push('/')
   }
   const real = mode === 'real'
   const inMode = (rec) => (real ? !!rec.external : !rec.external)
@@ -67,14 +77,9 @@ export default function App() {
     [hub.buildings, real],
   )
 
-  // view is one flat id space, matching how office ids already worked here:
-  // 'map' | a building's id | an office's id. Old sessions stored 'campus'
-  // or a bare office id -- 'campus' maps forward to 'map', a bare office id
-  // is already a value this scheme understands as-is.
-  const [view, setView] = useState(() => {
-    const raw = localStorage.getItem('hq:view')
-    return !raw || raw === 'campus' ? 'map' : raw
-  })
+  const params = useParams() // {} on '/', {building} on '/:building', {building, floor} on '/:building/:floor'
+  const buildingSlug = params.building
+  const floorSlug = params.floor
   const [selectedId, setSelectedId] = useState(null)
   const [tab, setTab] = useState('feed')
   const [modal, setModal] = useState(null) // {type, ...}
@@ -89,42 +94,55 @@ export default function App() {
   const [sideOpen, setSideOpen] = useState(false)
 
   useEffect(() => {
-    try {
-      localStorage.setItem('hq:view', view)
-    } catch {}
-  }, [view])
-  useEffect(() => {
     const t = setInterval(() => tick((x) => x + 1), 5000)
     return () => clearInterval(t)
   }, [])
 
-  const office = offices.find((o) => o.id === view)
-  // Viewing a floor derives its building from the floor; viewing a building
-  // directly (view holds the building's own id) looks it up straight.
-  const building = office
-    ? buildings.find((b) => b.id === office.buildingId) || null
-    : buildings.find((b) => b.id === view) || null
+  // The URL is the source of truth now -- no local `view` state, nothing
+  // persisted to localStorage. Reload/back/forward/shared links all just
+  // re-derive this from the path.
+  const building = buildingSlug ? buildings.find((b) => b.slug === buildingSlug) || null : null
   const buildingOffices = useMemo(
     () => (building ? offices.filter((o) => o.buildingId === building.id) : []),
     [building, offices],
   )
+  const office = building && floorSlug ? buildingOffices.find((o) => o.slug === floorSlug) || null : null
+  // A landmark has nothing inside it -- it shows the map with its
+  // description card open over it, not a tower (see the viewport below).
+  const showMap = !buildingSlug || building?.kind === 'landmark'
+  // A floor slug was given but doesn't belong to this building -- distinct
+  // from "no floor slug at all" (a bare building URL, which shows the
+  // tower), and from "no such building" (falls through to Not Found below).
+  const floorMissing = !!(building && floorSlug && !office)
+
+  // Building slugs are unique across mock/real data; a link to a building
+  // that only exists in the other mode should switch modes to reveal it
+  // instead of showing "not found".
   useEffect(() => {
-    if (view !== 'map' && offices.length && buildings.length && !office && !building) setView('map')
-  }, [offices, buildings, office, building, view])
+    if (!hub.loaded) return
+    const target = crossModeTarget({ buildingSlug, currentBuildings: buildings, allBuildings: hub.buildings || [] })
+    if (target) applyMode(target)
+  }, [hub.loaded, buildingSlug, buildings, hub.buildings])
+
+  // Visiting a landmark's URL directly (not just clicking it from the map)
+  // shows the same description card clicking it does.
+  useEffect(() => {
+    if (building?.kind === 'landmark') setModal({ type: 'landmark', building })
+  }, [building])
 
   const agentsById = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a])), [agents])
   const officeAgents = useMemo(() => (office ? agents.filter((a) => a.officeId === office.id) : []), [agents, office])
   const scopeIds = useMemo(() => (office ? new Set(officeAgents.map((a) => a.id)) : null), [office, officeAgents])
   const selected = agentsById[selectedId]
 
-  const goMap = () => { setSelectedId(null); setView('map') }
+  const goMap = () => { setSelectedId(null); router.push('/') }
   // Shared by TownMap (building ids) and Building.jsx (office ids) -- both
-  // live in the same id space, so one function routes either kind of click.
-  // A landmark has nothing inside it, so it opens a card instead of a tower.
+  // live in the same id space, so one function routes either kind of
+  // click. Landmarks get a real URL too now; the effect above is what
+  // actually opens their card once the URL points at one.
   const open = (id) => {
-    const b = buildings.find((x) => x.id === id)
-    if (b?.kind === 'landmark') return setModal({ type: 'landmark', building: b })
-    setView(id)
+    const path = resolveOpenPath({ buildings, offices, id })
+    if (path) router.push(path)
   }
 
   const select = (id, jump = false) => {
@@ -136,7 +154,7 @@ export default function App() {
       // not require a second tap on the toolbar toggle to see who you
       // just picked.
       setSideOpen(true)
-      if (jump && agentsById[id]) setView(agentsById[id].officeId)
+      if (jump && agentsById[id]) open(agentsById[id].officeId)
     } else if (tab === 'agent') setTab('feed')
   }
 
@@ -151,7 +169,7 @@ export default function App() {
           <span className="logo">▣</span> WORLD OF WONDERS
         </div>
         <nav className="tabs">
-          <button className={view === 'map' ? 'on' : ''} onClick={goMap}>
+          <button className={showMap ? 'on' : ''} onClick={goMap}>
             🗺 Map
           </button>
           {building && (
@@ -167,7 +185,7 @@ export default function App() {
               const n = agents.filter((a) => a.officeId === o.id)
               const err = n.some((a) => a.status === 'error')
               return (
-                <button key={o.id} className={view === o.id ? 'on' : ''} onClick={() => open(o.id)} style={{ '--tab': themeOf(o).wall }}>
+                <button key={o.id} className={office?.id === o.id ? 'on' : ''} onClick={() => open(o.id)} style={{ '--tab': themeOf(o).wall }}>
                   <i className="swatch" />
                   <span className="floor-no">F{i + 1}</span>
                   {o.external && <span title={`Synced from ${o.source}`}>⇅</span>}
@@ -182,7 +200,7 @@ export default function App() {
               ⇅
             </button>
           )}
-          {!real && view === 'map' && admin && (
+          {!real && showMap && admin && (
             <button className="add" onClick={() => setModal({ type: 'building' })} title="Add a building">
               ＋
             </button>
@@ -262,7 +280,7 @@ export default function App() {
                 <button onClick={() => setTab('connect')}>{'</>'} API</button>
               </div>
             </>
-          ) : building ? (
+          ) : building && building.kind === 'workspace' ? (
             <>
               <div className="title">
                 <h1>{building.name}</h1>
@@ -324,9 +342,9 @@ export default function App() {
         <div className="viewport">
           {!hub.loaded ? (
             <div className="empty">Connecting to hub… is `npm run dev` running?</div>
-          ) : view === 'map' && !buildings.length && real ? (
+          ) : showMap && !buildings.length && real ? (
             <RealtimeEmpty sources={sources} onManage={() => setModal({ type: 'sources' })} onMock={() => setMode('mock')} />
-          ) : view === 'map' ? (
+          ) : showMap ? (
             <TownMap
               buildings={buildings}
               onOpen={open}
@@ -347,6 +365,8 @@ export default function App() {
               showLinks={showLinks}
               zoom={zoom * 1.6}
             />
+          ) : floorMissing ? (
+            <div className="empty">Not found — <button className="link" onClick={goMap}>back to the map</button>.</div>
           ) : building ? (
             <Building
               key={building.id}
@@ -448,21 +468,18 @@ export default function App() {
       </aside>
 
       {modal?.type === 'office' && (
-        <NewOfficeModal api={api} buildingSlug={modal.buildingSlug} onClose={() => setModal(null)} onCreated={(o) => setView(o.id)} />
+        <NewOfficeModal
+          api={api}
+          buildingSlug={modal.buildingSlug}
+          onClose={() => setModal(null)}
+          onCreated={(o) => router.push(`/${modal.buildingSlug}/${o.slug}`)}
+        />
       )}
       {modal?.type === 'hire' && office && <HireModal api={api} office={office} onClose={() => setModal(null)} onCreated={(a) => select(a.id)} />}
-      {modal?.type === 'sources' && <SourcesModal api={api} sources={sources} offices={offices} onClose={() => setModal(null)} onOpenOffice={setView} />}
+      {modal?.type === 'sources' && <SourcesModal api={api} sources={sources} offices={offices} onClose={() => setModal(null)} onOpenOffice={open} />}
       {modal?.type === 'connect' && <ConnectModal api={api} agents={agents} offices={offices} fromId={modal.fromId} onClose={() => setModal(null)} />}
       {modal?.type === 'building' && (
-        <NewBuildingModal
-          api={api}
-          onClose={() => setModal(null)}
-          // `open(b.id)` would re-look-up the building in `buildings`, which
-          // can still be the pre-creation snapshot at this exact instant
-          // (this closure was captured when the modal was opened, before
-          // the POST resolved) -- use the freshly created object directly.
-          onCreated={(b) => (b.kind === 'landmark' ? setModal({ type: 'landmark', building: b }) : setView(b.id))}
-        />
+        <NewBuildingModal api={api} onClose={() => setModal(null)} onCreated={(b) => router.push(`/${b.slug}`)} />
       )}
       {modal?.type === 'landmark' && (
         <Modal title={modal.building.name} onClose={() => setModal(null)}>
