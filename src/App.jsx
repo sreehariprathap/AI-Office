@@ -42,7 +42,7 @@ function RealtimeEmpty({ sources, onManage, onMock }) {
 
 export default function App() {
   const hub = useHub()
-  const { api, connected, simulate, token, sources, setToken, rawToken } = hub
+  const { api, connected, simulate, sources, admin } = hub
 
   // Mock = demo world and hand-made agents. Realtime = only agents mirrored from connected sources.
   const [mode, setModeLocal] = useState(hub.mode)
@@ -51,7 +51,7 @@ export default function App() {
     setModeLocal(m)
     setSelectedId(null)
     setView('map')
-    if (token) api('POST', '/api/mode', { mode: m }).catch(() => {})
+    if (admin) api('POST', '/api/mode', { mode: m }).catch(() => {})
   }
   const real = mode === 'real'
   const inMode = (rec) => (real ? !!rec.external : !rec.external)
@@ -182,7 +182,7 @@ export default function App() {
               ⇅
             </button>
           )}
-          {!real && view === 'map' && token && (
+          {!real && view === 'map' && admin && (
             <button className="add" onClick={() => setModal({ type: 'building' })} title="Add a building">
               ＋
             </button>
@@ -201,16 +201,16 @@ export default function App() {
             </button>
           )}
           <span className={`live ${connected ? 'on' : ''}`}>{connected ? 'LIVE' : 'OFFLINE'}</span>
-          {hub.loaded && !token && (
+          {hub.loaded && (
             <button
               className="lock"
-              title={rawToken ? 'That token was rejected — paste HUB_ADMIN_TOKEN again' : 'Read-only: paste the admin token to make changes'}
-              onClick={() => {
-                const t = window.prompt('Admin token (HUB_ADMIN_TOKEN)')
-                if (t) setToken(t.trim())
+              title="Log out"
+              onClick={async () => {
+                await fetch('/api/logout', { method: 'POST' })
+                window.location.href = '/login'
               }}
             >
-              🔒 {rawToken ? 'bad token' : 'read-only'}
+              🔓 Log out
             </button>
           )}
           <div className="mode-toggle" role="radiogroup" aria-label="Data mode">
@@ -278,7 +278,7 @@ export default function App() {
                 {building.sourceId && <span className="badge synced">⇅ synced · {sources.find((s) => s.id === building.sourceId)?.name || 'connected system'}</span>}
               </div>
               <div className="row gap">
-                {!building.sourceId && token && (
+                {!building.sourceId && admin && (
                   <>
                     <button className="primary" onClick={() => setModal({ type: 'office', buildingSlug: building.slug })}>
                       + Add floor
@@ -302,7 +302,7 @@ export default function App() {
                     ⇅ Connected systems
                   </button>
                 ) : (
-                  <button className="primary" onClick={() => setModal({ type: 'building' })} disabled={!token}>
+                  <button className="primary" onClick={() => setModal({ type: 'building' })} disabled={!admin}>
                     + Add building
                   </button>
                 )}
@@ -331,7 +331,7 @@ export default function App() {
               buildings={buildings}
               onOpen={open}
               onAddBuilding={() => setModal({ type: 'building' })}
-              canAdd={!real && !!token}
+              canAdd={!real && admin}
               zoom={zoom}
             />
           ) : office ? (
@@ -389,7 +389,7 @@ export default function App() {
             </span>
           ) : (
             <label className="sim">
-              <input type="checkbox" checked={simulate} disabled={!token} onChange={(e) => api('POST', '/api/simulate', { on: e.target.checked })} /> demo traffic
+              <input type="checkbox" checked={simulate} disabled={!admin} onChange={(e) => api('POST', '/api/simulate', { on: e.target.checked })} /> demo traffic
             </label>
           )}
         </footer>
@@ -432,7 +432,7 @@ export default function App() {
             />
           )}
           {tab === 'agent' && !selected && <p className="muted pad">Click an agent on the floor.</p>}
-          {tab === 'connect' && office && !office.external && <ConnectPanel office={office} api={api} token={token} />}
+          {tab === 'connect' && office && !office.external && <ConnectPanel office={office} api={api} admin={admin} />}
           {tab === 'connect' && office?.external && (
             <div className="connect">
               <p className="muted">

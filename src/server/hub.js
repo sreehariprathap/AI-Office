@@ -15,7 +15,7 @@ import {
   publicSource, syncSource, addSource, updateSource, removeSource, ensureEnvSource, fetchSnapshot, applySnapshot,
   recordSyncFailure, isDue,
 } from './sources.js'
-import { adminToken, isLocalHost, hostOf, isHttps, SESSION_COOKIE, SESSION_MAX_AGE_SEC } from './session.js'
+import { adminToken, isHttps, SESSION_COOKIE, SESSION_MAX_AGE_SEC } from './session.js'
 
 const MAX_MESSAGES = 1000
 const CLIENT_MESSAGES = 300
@@ -301,11 +301,6 @@ route('GET', '/api/state', ({ world, admin }) => {
 })
 
 route('GET', '/api/health', ({ world }) => ({ ok: true, storage: storageKind, offices: world.offices.length, agents: world.agents.length }))
-
-// UI bootstrap: hands the admin token to a browser on localhost only (never on a deployment).
-route('GET', '/api/session', ({ world, req }) => {
-  return isLocalHost(hostOf(req)) ? { hubToken: adminToken(world) } : { hubToken: null, reason: 'paste HUB_ADMIN_TOKEN into the UI' }
-})
 
 route('POST', '/api/login', ({ world, req, body }) => {
   const token = adminToken(world)

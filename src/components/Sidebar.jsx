@@ -256,7 +256,7 @@ function MetaDetails({ meta }) {
 }
 
 // ---------------------------------------------------------------- connect / API panel
-export function ConnectPanel({ office, api, token }) {
+export function ConnectPanel({ office, api, admin }) {
   const [copied, copy] = useCopy()
   const [preview, setPreview] = useState(null)
   const [reveal, setReveal] = useState(false)
@@ -315,7 +315,7 @@ agent.onMessage((m) => agent.send(m.from, 'On it!'))`,
         <code>{office.apiKey ? shown : 'hidden (open the hub from localhost)'}</code>
         {office.apiKey && <button onClick={() => setReveal((r) => !r)}>{reveal ? 'hide' : 'show'}</button>}
         {office.apiKey && <button onClick={() => copy(key, 'key')}>{copied === 'key' ? '✓' : 'copy'}</button>}
-        {token && (
+        {admin && (
           <button className="danger" onClick={() => confirm('Rotate key? Connected agents will need the new key.') && api('POST', `/api/offices/${office.slug}/keys/rotate`)}>
             rotate
           </button>

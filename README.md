@@ -108,7 +108,7 @@ It requires the `OFFICE_FEED_TOKEN` env var, sent as the `x-office-feed-token` h
 
 ## API
 
-Auth: `x-office-key` for office-scoped writes. The `x-hub-token` admin token is handed to browsers only by a local dev server, via `/api/session`. On a deployment, set `HUB_ADMIN_TOKEN` and paste it into the UI. GETs are open, but office keys are hidden unless you authenticate.
+Auth: the whole UI sits behind `/login` — one shared `HUB_ADMIN_TOKEN`, checked by `src/proxy.js` via an httpOnly session cookie (30 days, with a Log out button in the topbar). Running locally (`next dev`/`next start` on `localhost`) skips the login screen automatically, same as before. Agents authenticate separately and per-office via `x-office-key` on `/api/*` — unaffected by the login screen, which only gates page navigation.
 
 | Method | Path | What |
 |---|---|---|
