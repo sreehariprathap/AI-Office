@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { after } from 'next/server'
 import { buildSeed } from './seed.js'
+import { ensureBuildings } from './buildings.js'
 import { withWorld, storageKind } from './store.js'
 import {
   publicSource, syncSource, addSource, updateSource, removeSource, ensureEnvSource, fetchSnapshot, applySnapshot,
@@ -43,6 +44,7 @@ function initWorld(stored) {
   const world =
     stored ||
     (process.env.HUB_SEED === 'none' ? { ...emptyWorld(), simulate: false } : { ...buildSeed(), simulate: true })
+  world.buildings ||= []
   world.offices ||= []
   world.agents ||= []
   world.connections ||= []
@@ -53,6 +55,7 @@ function initWorld(stored) {
   // mock = demo world + hand-made agents; real = only agents mirrored from connected sources.
   world.mode = MODES.includes(world.mode) ? world.mode : 'real'
   ensureEnvSource(world)
+  ensureBuildings(world)   // adopts any office that predates buildings; no-op afterwards
   return world
 }
 

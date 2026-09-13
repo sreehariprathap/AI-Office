@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createBuilding, buildingForSource, ensureBuildings, floorsOf, buildingBySlug } from '../src/server/buildings.js'
+import { buildSeed } from '../src/server/seed.js'
 
 const emptyWorld = (over = {}) => ({ buildings: [], offices: [], agents: [], sources: [], ...over })
 
@@ -65,4 +66,13 @@ test('floorsOf and buildingBySlug read back what was written', () => {
   const b = buildingBySlug(world, world.buildings[0].slug)
   assert.equal(floorsOf(world, b).length, 1)
   assert.equal(buildingBySlug(world, 'nope'), undefined)
+})
+
+test('buildSeed produces buildings and every office belongs to one', () => {
+  const seed = buildSeed()
+  assert.ok(seed.buildings.length > 0, 'seed has buildings')
+  for (const office of seed.offices) {
+    assert.ok(office.buildingId, `office ${office.slug} has a buildingId`)
+    assert.ok(seed.buildings.some((b) => b.id === office.buildingId), 'buildingId resolves')
+  }
 })

@@ -1,5 +1,6 @@
 // Demo world used on first boot (and by POST /api/reset).
 import { randomUUID } from 'node:crypto'
+import { createBuilding } from './buildings.js'
 
 const key = () => 'ofk_' + randomUUID().replace(/-/g, '')
 
@@ -10,6 +11,25 @@ export function buildSeed() {
     { slug: 'development', name: 'Development', theme: 'cobalt', floor: 'tile', description: 'Code agents shipping PRs around the clock.' },
     { slug: 'sales', name: 'Sales', theme: 'crimson', floor: 'checker', description: 'Outreach, lead scoring and CRM hygiene.' },
   ].map((o) => ({ id: randomUUID(), apiKey: key(), createdAt: now, ...o }))
+
+  // Mock mode is a town too: one workspace building holding the demo floors,
+  // plus a landmark so the map shows both kinds from first boot.
+  const seedWorld = { buildings: [], offices, sources: [] }
+  const headquarters = createBuilding(seedWorld, {
+    name: 'Head Office',
+    sprite: 'tower',
+    theme: 'slate',
+    description: 'Where the demo team works.',
+  })
+  createBuilding(seedWorld, {
+    name: 'Cafe',
+    kind: 'landmark',
+    sprite: 'cafe',
+    theme: 'amber',
+    description: 'Nothing runs here. It just makes the street feel lived-in.',
+  })
+  offices.forEach((o) => { o.buildingId = headquarters.id })
+  const buildings = seedWorld.buildings
 
   const [fin, dev, sales] = offices
   const agents = []
@@ -76,5 +96,5 @@ export function buildSeed() {
   link(devW[0], finW[1], 'bridge', 'invoices API')
   link(salesW[2], devW[3], 'bridge', 'bug reports from calls')
 
-  return { offices, agents, connections, messages: [] }
+  return { buildings, offices, agents, connections, messages: [] }
 }
