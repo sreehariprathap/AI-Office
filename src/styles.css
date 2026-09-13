@@ -440,3 +440,9 @@ code { font-family: var(--body); background: #0006; padding: 0 4px; }
 
 /* ------------------------------------------------ town map */
 .bsign { font-family: var(--pixel); font-weight: 700; font-size: 13px; fill: #2a1d12; pointer-events: none; }
+.town { display: block; filter: drop-shadow(0 6px 14px #0007); }
+.lot { cursor: pointer; }
+.lot:hover .bsprite { filter: brightness(1.08); }
+.lot-sub { font-family: var(--body); font-size: 13px; fill: #efe6cf; paint-order: stroke; stroke: #0009; stroke-width: 3px; }
+.lot-alert { animation: blink 1s steps(2) infinite; }
+.add-lot:hover rect { stroke: var(--accent); }
