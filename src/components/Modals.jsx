@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { THEMES } from '../world.js'
 
-function Modal({ title, onClose, children }) {
+export function Modal({ title, onClose, children }) {
   return (
     <div className="modal-back" onMouseDown={onClose}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
@@ -36,7 +36,7 @@ function useSubmit(onClose) {
   return { err, busy, submit }
 }
 
-export function NewOfficeModal({ api, onClose, onCreated }) {
+export function NewOfficeModal({ api, buildingSlug, onClose, onCreated }) {
   const [f, setF] = useState({ name: '', theme: 'amber', floor: 'carpet', description: '' })
   const { err, busy, submit } = useSubmit(onClose)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
@@ -45,7 +45,7 @@ export function NewOfficeModal({ api, onClose, onCreated }) {
       <form
         className="form"
         onSubmit={submit(async () => {
-          const o = await api('POST', '/api/offices', f)
+          const o = await api('POST', '/api/offices', { ...f, buildingSlug })
           onCreated?.(o)
         })}
       >

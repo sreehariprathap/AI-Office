@@ -13,12 +13,18 @@ const SPRITE = {
   tower:   { roof: 'flat',   storeys: 4, accent: '#c9d4e0' },
 }
 
+const SIGN_MAX = 16
+
 export default function BuildingSprite({ building, w = 200, h = 160 }) {
   const s = SPRITE[building.sprite] || SPRITE.tower
   const t = THEMES[building.theme] || THEMES.slate
   const bodyH = h * 0.62
   const bodyY = h - bodyH
   const roofH = 26
+  const name = building.name || ''
+  const signLabel = name.length > SIGN_MAX ? `${name.slice(0, SIGN_MAX - 1)}…` : name
+  const signFontSize = signLabel.length > 12 ? 10 : 12
+  const signW = Math.max(112, signLabel.length * (signFontSize * 0.62) + 24)
 
   return (
     <g className="bsprite">
@@ -66,9 +72,9 @@ export default function BuildingSprite({ building, w = 200, h = 160 }) {
       {/* hanging sign */}
       <g transform={`translate(${w / 2}, ${bodyY - roofH - 14})`}>
         <rect x={-4} y={-2} width={8} height={14} fill="#6e4a2b" />
-        <rect x={-56} y={-30} width={112} height={30} rx={5} fill="#efe6cf" stroke={s.accent} strokeWidth={2.5} />
-        <text x={0} y={-10} textAnchor="middle" className="bsign">
-          {building.name}
+        <rect x={-signW / 2} y={-30} width={signW} height={30} rx={5} fill="#efe6cf" stroke={s.accent} strokeWidth={2.5} />
+        <text x={0} y={-10} textAnchor="middle" className="bsign" style={{ fontSize: signFontSize }}>
+          {signLabel}
         </text>
       </g>
     </g>

@@ -63,7 +63,7 @@ export default function TownMap({ buildings, onOpen, onAddBuilding, canAdd, zoom
             key={b.id}
             className="lot"
             transform={`translate(${lot.x},${lot.y})`}
-            onClick={() => onOpen(b.slug)}
+            onClick={() => onOpen(b.id)}
             shapeRendering="auto"
           >
             <title>{`${b.name}${b.kind === 'landmark' ? ' (landmark)' : ` — ${b.numberOfFloors} floors, ${b.numberOfAgents} agents`}`}</title>

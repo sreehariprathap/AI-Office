@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useHub } from './hub.js'
 import { themeOf, STATUS_COLORS } from './world.js'
+import TownMap from './components/TownMap.jsx'
 import Building from './components/Building.jsx'
 import OfficeFloor from './components/OfficeFloor.jsx'
 import { Feed, AgentPanel, ConnectPanel } from './components/Sidebar.jsx'
@@ -49,7 +50,7 @@ export default function App() {
   const setMode = (m) => {
     setModeLocal(m)
     setSelectedId(null)
-    setView('campus')
+    setView('map')
     if (token) api('POST', '/api/mode', { mode: m }).catch(() => {})
   }
   const real = mode === 'real'
@@ -59,8 +60,21 @@ export default function App() {
   const connections = useMemo(() => hub.connections.filter(inMode), [hub.connections, real])
   const messages = useMemo(() => hub.messages.filter(inMode), [hub.messages, real])
   const liveSources = real ? sources : []
+  // A building is "real" when it's linked to a connected source, same rule
+  // offices/agents already use via `external`.
+  const buildings = useMemo(
+    () => (hub.buildings || []).filter((b) => (real ? !!b.sourceId : !b.sourceId)),
+    [hub.buildings, real],
+  )
 
-  const [view, setView] = useState(() => localStorage.getItem('hq:view') || 'campus')
+  // view is one flat id space, matching how office ids already worked here:
+  // 'map' | a building's id | an office's id. Old sessions stored 'campus'
+  // or a bare office id -- 'campus' maps forward to 'map', a bare office id
+  // is already a value this scheme understands as-is.
+  const [view, setView] = useState(() => {
+    const raw = localStorage.getItem('hq:view')
+    return !raw || raw === 'campus' ? 'map' : raw
+  })
   const [selectedId, setSelectedId] = useState(null)
   const [tab, setTab] = useState('feed')
   const [modal, setModal] = useState(null) // {type, ...}
@@ -85,14 +99,33 @@ export default function App() {
   }, [])
 
   const office = offices.find((o) => o.id === view)
+  // Viewing a floor derives its building from the floor; viewing a building
+  // directly (view holds the building's own id) looks it up straight.
+  const building = office
+    ? buildings.find((b) => b.id === office.buildingId) || null
+    : buildings.find((b) => b.id === view) || null
+  const buildingOffices = useMemo(
+    () => (building ? offices.filter((o) => o.buildingId === building.id) : []),
+    [building, offices],
+  )
   useEffect(() => {
-    if (view !== 'campus' && offices.length && !office) setView('campus')
-  }, [offices, office, view])
+    if (view !== 'map' && offices.length && buildings.length && !office && !building) setView('map')
+  }, [offices, buildings, office, building, view])
 
   const agentsById = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a])), [agents])
   const officeAgents = useMemo(() => (office ? agents.filter((a) => a.officeId === office.id) : []), [agents, office])
   const scopeIds = useMemo(() => (office ? new Set(officeAgents.map((a) => a.id)) : null), [office, officeAgents])
   const selected = agentsById[selectedId]
+
+  const goMap = () => { setSelectedId(null); setView('map') }
+  // Shared by TownMap (building ids) and Building.jsx (office ids) -- both
+  // live in the same id space, so one function routes either kind of click.
+  // A landmark has nothing inside it, so it opens a card instead of a tower.
+  const open = (id) => {
+    const b = buildings.find((x) => x.id === id)
+    if (b?.kind === 'landmark') return setModal({ type: 'landmark', building: b })
+    setView(id)
+  }
 
   const select = (id, jump = false) => {
     if (id === 'hire') return office && !office.external && setModal({ type: 'hire' })
@@ -114,34 +147,44 @@ export default function App() {
   return (
     <div className={`app mode-${mode}`} style={{ '--accent': office ? t.accent : real ? '#7fb4ff' : '#79e0a0' }}>
       <header className="topbar">
-        <div className="brand" onClick={() => setView('campus')}>
-          <span className="logo">▣</span> AGENT HQ
+        <div className="brand" onClick={goMap}>
+          <span className="logo">▣</span> WORLD OF WONDERS
         </div>
         <nav className="tabs">
-          <button className={view === 'campus' ? 'on' : ''} onClick={() => setView('campus')}>
-            🏢 Building
+          <button className={view === 'map' ? 'on' : ''} onClick={goMap}>
+            🗺 Map
           </button>
-          {offices.map((o, i) => {
-            const n = agents.filter((a) => a.officeId === o.id)
-            const err = n.some((a) => a.status === 'error')
-            return (
-              <button key={o.id} className={view === o.id ? 'on' : ''} onClick={() => setView(o.id)} style={{ '--tab': themeOf(o).wall }}>
-                <i className="swatch" />
-                <span className="floor-no">F{i + 1}</span>
-                {o.external && <span title={`Synced from ${o.source}`}>⇅</span>}
-                {o.name}
-                <span className="count">{n.length}</span>
-                {err && <span className="err-dot" title="An agent needs attention" />}
+          {building && (
+            <>
+              <span className="crumb">›</span>
+              <button className={!office ? 'on' : ''} onClick={() => open(building.id)}>
+                {building.name}
               </button>
-            )
-          })}
-          {real ? (
+            </>
+          )}
+          {building &&
+            buildingOffices.map((o, i) => {
+              const n = agents.filter((a) => a.officeId === o.id)
+              const err = n.some((a) => a.status === 'error')
+              return (
+                <button key={o.id} className={view === o.id ? 'on' : ''} onClick={() => open(o.id)} style={{ '--tab': themeOf(o).wall }}>
+                  <i className="swatch" />
+                  <span className="floor-no">F{i + 1}</span>
+                  {o.external && <span title={`Synced from ${o.source}`}>⇅</span>}
+                  {o.name}
+                  <span className="count">{n.length}</span>
+                  {err && <span className="err-dot" title="An agent needs attention" />}
+                </button>
+              )
+            })}
+          {real && (
             <button className="add" onClick={() => setModal({ type: 'sources' })} title="Connect a system">
               ⇅
             </button>
-          ) : (
-            <button className="add" onClick={() => setModal({ type: 'office' })} title="Build a new office">
-              +
+          )}
+          {!real && view === 'map' && token && (
+            <button className="add" onClick={() => setModal({ type: 'building' })} title="Add a building">
+              ＋
             </button>
           )}
         </nav>
@@ -193,7 +236,7 @@ export default function App() {
             <>
               <div className="title">
                 <h1>
-                  F{offices.indexOf(office) + 1} · {office.name}
+                  F{buildingOffices.indexOf(office) + 1} · {office.name}
                 </h1>
                 <span className="muted">{office.description}</span>
                 {office.external && <span className="badge synced">⇅ synced · {sources.find((s) => s.id === office.source)?.name || office.source}</span>}
@@ -219,12 +262,38 @@ export default function App() {
                 <button onClick={() => setTab('connect')}>{'</>'} API</button>
               </div>
             </>
+          ) : building ? (
+            <>
+              <div className="title">
+                <h1>{building.name}</h1>
+                <span className="muted">
+                  {buildingOffices.length} floor{buildingOffices.length === 1 ? '' : 's'} ·{' '}
+                  {connections.filter((c) => {
+                    const a = agentsById[c.from]
+                    const b = agentsById[c.to]
+                    return a && b && a.officeId !== b.officeId && buildingOffices.some((o) => o.id === a.officeId)
+                  }).length}{' '}
+                  cross-floor links
+                </span>
+                {building.sourceId && <span className="badge synced">⇅ synced · {sources.find((s) => s.id === building.sourceId)?.name || 'connected system'}</span>}
+              </div>
+              <div className="row gap">
+                {!building.sourceId && token && (
+                  <>
+                    <button className="primary" onClick={() => setModal({ type: 'office', buildingSlug: building.slug })}>
+                      + Add floor
+                    </button>
+                    <button onClick={() => setModal({ type: 'connect' })}>⚡ Bridge agents</button>
+                  </>
+                )}
+              </div>
+            </>
           ) : (
             <>
               <div className="title">
-                <h1>{real ? 'Realtime HQ' : 'Mock HQ'}</h1>
+                <h1>{real ? 'World of Wonders' : 'Mock Town'}</h1>
                 <span className="muted">
-                  {offices.length} floor{offices.length === 1 ? '' : 's'} · {connections.filter((c) => agentsById[c.from]?.officeId !== agentsById[c.to]?.officeId).length} cross-floor links · click a floor to walk in
+                  {buildings.length} building{buildings.length === 1 ? '' : 's'} · click one to walk in
                 </span>
               </div>
               <div className="row gap">
@@ -233,12 +302,9 @@ export default function App() {
                     ⇅ Connected systems
                   </button>
                 ) : (
-                  <>
-                    <button className="primary" onClick={() => setModal({ type: 'office' })}>
-                      + Build office
-                    </button>
-                    <button onClick={() => setModal({ type: 'connect' })}>⚡ Bridge agents</button>
-                  </>
+                  <button className="primary" onClick={() => setModal({ type: 'building' })} disabled={!token}>
+                    + Add building
+                  </button>
                 )}
               </div>
             </>
@@ -258,10 +324,16 @@ export default function App() {
         <div className="viewport">
           {!hub.loaded ? (
             <div className="empty">Connecting to hub… is `npm run dev` running?</div>
-          ) : !offices.length && real ? (
+          ) : view === 'map' && !buildings.length && real ? (
             <RealtimeEmpty sources={sources} onManage={() => setModal({ type: 'sources' })} onMock={() => setMode('mock')} />
-          ) : !offices.length ? (
-            <div className="empty">No mock offices yet — build one.</div>
+          ) : view === 'map' ? (
+            <TownMap
+              buildings={buildings}
+              onOpen={open}
+              onAddBuilding={() => setModal({ type: 'building' })}
+              canAdd={!real && !!token}
+              zoom={zoom}
+            />
           ) : office ? (
             <OfficeFloor
               key={office.id}
@@ -275,18 +347,22 @@ export default function App() {
               showLinks={showLinks}
               zoom={zoom * 1.6}
             />
-          ) : (
+          ) : building ? (
             <Building
-              offices={offices}
+              key={building.id}
+              building={building}
+              offices={buildingOffices}
               agents={agents}
               messages={messages}
-              onOpen={setView}
+              onOpen={open}
               onSelectAgent={(id) => select(id, true)}
-              onAddFloor={() => setModal({ type: real ? 'sources' : 'office' })}
-              addLabel={real ? '⇅ CONNECT SYSTEM' : '+ ADD FLOOR'}
-              title={real ? 'LIVE HQ' : 'MOCK HQ'}
+              onAddFloor={() => setModal({ type: 'office', buildingSlug: building.slug })}
+              addLabel="+ ADD FLOOR"
+              title={building.name}
               zoom={zoom * 1.15}
             />
+          ) : (
+            <div className="empty">Not found — <button className="link" onClick={goMap}>back to the map</button>.</div>
           )}
         </div>
 
@@ -371,7 +447,9 @@ export default function App() {
         </div>
       </aside>
 
-      {modal?.type === 'office' && <NewOfficeModal api={api} onClose={() => setModal(null)} onCreated={(o) => setView(o.id)} />}
+      {modal?.type === 'office' && (
+        <NewOfficeModal api={api} buildingSlug={modal.buildingSlug} onClose={() => setModal(null)} onCreated={(o) => setView(o.id)} />
+      )}
       {modal?.type === 'hire' && office && <HireModal api={api} office={office} onClose={() => setModal(null)} onCreated={(a) => select(a.id)} />}
       {modal?.type === 'sources' && <SourcesModal api={api} sources={sources} offices={offices} onClose={() => setModal(null)} onOpenOffice={setView} />}
       {modal?.type === 'connect' && <ConnectModal api={api} agents={agents} offices={offices} fromId={modal.fromId} onClose={() => setModal(null)} />}
