@@ -78,7 +78,9 @@ function Sprite({ agent, p, selected, onSelect, atHome }) {
       }}
     >
       <rect x={0} y={-6} width={32} height={46} fill="transparent" />
-      <g transform="scale(2)">
+      {/* auto overrides the floor svg's crispEdges for just this figure --
+          right for the blocky desks/walls, wrong for Person's curves. */}
+      <g transform="scale(2)" shapeRendering="auto">
         <Person look={look} seated={seated} typing={agent.status === 'working' && seated} walking={walking} />
       </g>
       {icon && !walking && (

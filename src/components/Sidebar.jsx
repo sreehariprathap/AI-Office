@@ -226,13 +226,21 @@ export function AgentPanel({ agent, agents, offices, connections, messages, api,
 }
 
 // Source-provided details (e.g. seed capital, book value, state) — rendered generically.
+// description/specialization are prose sentences, not data points, so both get pulled
+// out of the key-value dump and read as their own paragraph instead of a cramped <dd>.
 function MetaDetails({ meta }) {
   if (!meta) return null
   const label = (k) => k.replace(/([A-Z])/g, ' $1').toLowerCase()
   const fmt = (v) => (typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v))
-  const entries = Object.entries(meta).filter(([k, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object' && k !== 'description')
+  const entries = Object.entries(meta).filter(([k, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object' && k !== 'description' && k !== 'specialization')
   return (
     <>
+      {meta.specialization && (
+        <div className="task">
+          <span className="muted">specialty</span>
+          <div>{meta.specialization}</div>
+        </div>
+      )}
       <h3>Details</h3>
       {meta.description && <p className="small muted">{meta.description}</p>}
       <dl className="kv">

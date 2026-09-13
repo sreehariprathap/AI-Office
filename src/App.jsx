@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useHub } from './hub.js'
 import { themeOf, STATUS_COLORS } from './world.js'
-import Campus from './components/Campus.jsx'
+import Building from './components/Building.jsx'
 import OfficeFloor from './components/OfficeFloor.jsx'
 import { Feed, AgentPanel, ConnectPanel } from './components/Sidebar.jsx'
 import { NewOfficeModal, HireModal, ConnectModal, SourcesModal } from './components/Modals.jsx'
@@ -67,6 +67,12 @@ export default function App() {
   const [showLinks, setShowLinks] = useState(true)
   const [zoom, setZoom] = useState(1)
   const [, tick] = useState(0)
+  // Mobile only (see the .side rules under the 1000px breakpoint in
+  // styles.css) — on desktop .side is always visible in its own grid
+  // column and this flag is never read. On mobile it's an off-canvas
+  // bottom sheet: closed by default so the floor plan gets the full
+  // screen, opened either by the toolbar toggle or by tapping a desk.
+  const [sideOpen, setSideOpen] = useState(false)
 
   useEffect(() => {
     try {
@@ -93,6 +99,10 @@ export default function App() {
     setSelectedId(id)
     if (id) {
       setTab('agent')
+      // Tapping a desk on mobile should surface the panel immediately,
+      // not require a second tap on the toolbar toggle to see who you
+      // just picked.
+      setSideOpen(true)
       if (jump && agentsById[id]) setView(agentsById[id].officeId)
     } else if (tab === 'agent') setTab('feed')
   }
@@ -109,14 +119,15 @@ export default function App() {
         </div>
         <nav className="tabs">
           <button className={view === 'campus' ? 'on' : ''} onClick={() => setView('campus')}>
-            🏙 Campus
+            🏢 Building
           </button>
-          {offices.map((o) => {
+          {offices.map((o, i) => {
             const n = agents.filter((a) => a.officeId === o.id)
             const err = n.some((a) => a.status === 'error')
             return (
               <button key={o.id} className={view === o.id ? 'on' : ''} onClick={() => setView(o.id)} style={{ '--tab': themeOf(o).wall }}>
                 <i className="swatch" />
+                <span className="floor-no">F{i + 1}</span>
                 {o.external && <span title={`Synced from ${o.source}`}>⇅</span>}
                 {o.name}
                 <span className="count">{n.length}</span>
@@ -160,10 +171,10 @@ export default function App() {
             </button>
           )}
           <div className="mode-toggle" role="radiogroup" aria-label="Data mode">
-            <button role="radio" aria-checked={!real} className={!real ? 'on' : ''} onClick={() => setMode('mock')} title="Demo offices with simulated traffic">
+            <button role="radio" aria-checked={!real} className={!real ? 'on' : ''} disabled={!hub.loaded} onClick={() => setMode('mock')} title="Demo offices with simulated traffic">
               MOCK
             </button>
-            <button role="radio" aria-checked={real} className={real ? 'on' : ''} onClick={() => setMode('real')} title="Real agents from connected systems">
+            <button role="radio" aria-checked={real} className={real ? 'on' : ''} disabled={!hub.loaded} onClick={() => setMode('real')} title="Real agents from connected systems">
               <i className={`rt-dot ${sources.some((s) => s.status === 'ok') ? 'ok' : ''}`} /> REALTIME
             </button>
           </div>
@@ -181,7 +192,9 @@ export default function App() {
           {office ? (
             <>
               <div className="title">
-                <h1>{office.name}</h1>
+                <h1>
+                  F{offices.indexOf(office) + 1} · {office.name}
+                </h1>
                 <span className="muted">{office.description}</span>
                 {office.external && <span className="badge synced">⇅ synced · {sources.find((s) => s.id === office.source)?.name || office.source}</span>}
               </div>
@@ -209,9 +222,9 @@ export default function App() {
           ) : (
             <>
               <div className="title">
-                <h1>{real ? 'Realtime' : 'Mock campus'}</h1>
+                <h1>{real ? 'Realtime HQ' : 'Mock HQ'}</h1>
                 <span className="muted">
-                  {offices.length} offices · {connections.filter((c) => agentsById[c.from]?.officeId !== agentsById[c.to]?.officeId).length} bridges · click a building to walk in
+                  {offices.length} floor{offices.length === 1 ? '' : 's'} · {connections.filter((c) => agentsById[c.from]?.officeId !== agentsById[c.to]?.officeId).length} cross-floor links · click a floor to walk in
                 </span>
               </div>
               <div className="row gap">
@@ -235,6 +248,11 @@ export default function App() {
             <span>{Math.round(zoom * 100)}%</span>
             <button onClick={() => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}>+</button>
           </div>
+          {/* Mobile-only (styles.css hides this above the 1000px breakpoint) --
+              the desktop layout already shows .side as a permanent column. */}
+          <button className="mobile-panel-toggle" onClick={() => setSideOpen((o) => !o)}>
+            💬 Panel{selected && tab === 'agent' ? `: ${selected.name}` : ''}
+          </button>
         </div>
 
         <div className="viewport">
@@ -258,15 +276,16 @@ export default function App() {
               zoom={zoom * 1.6}
             />
           ) : (
-            <Campus
+            <Building
               offices={offices}
               agents={agents}
-              connections={connections}
               messages={messages}
               onOpen={setView}
-              onNewOffice={() => setModal({ type: real ? 'sources' : 'office' })}
-              lotLabel={real ? '⇅ CONNECT SYSTEM' : '+ BUILD OFFICE'}
-              zoom={zoom * 1.05}
+              onSelectAgent={(id) => select(id, true)}
+              onAddFloor={() => setModal({ type: real ? 'sources' : 'office' })}
+              addLabel={real ? '⇅ CONNECT SYSTEM' : '+ ADD FLOOR'}
+              title={real ? 'LIVE HQ' : 'MOCK HQ'}
+              zoom={zoom * 1.15}
             />
           )}
         </div>
@@ -300,7 +319,14 @@ export default function App() {
         </footer>
       </main>
 
-      <aside className="side">
+      {/* Mobile-only backdrop -- styles.css only ever shows .side-backdrop
+          below the 1000px breakpoint, and only while sideOpen (this is
+          conditionally rendered, not just CSS-hidden, so it can never
+          eat a click on desktop). Tapping it closes the sheet, same as
+          the explicit × button inside. */}
+      {sideOpen && <div className="side-backdrop" onClick={() => setSideOpen(false)} />}
+
+      <aside className={`side ${sideOpen ? 'open' : ''}`}>
         <div className="side-tabs">
           <button className={tab === 'feed' ? 'on' : ''} onClick={() => setTab('feed')}>
             Comms
@@ -310,6 +336,9 @@ export default function App() {
           </button>
           <button className={tab === 'connect' ? 'on' : ''} onClick={() => setTab('connect')} disabled={!office}>
             API
+          </button>
+          <button className="side-close" onClick={() => setSideOpen(false)} aria-label="Close panel">
+            ×
           </button>
         </div>
         <div className="side-body">

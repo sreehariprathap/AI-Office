@@ -4,10 +4,12 @@
 // due source syncs) → run the route → save if anything changed. No timers, no sockets, no in-memory state
 // that has to survive between requests — so it runs the same under `next dev` and on Vercel.
 import { randomUUID } from 'node:crypto'
+import { after } from 'next/server'
 import { buildSeed } from './seed.js'
 import { withWorld, storageKind } from './store.js'
 import {
-  publicSource, syncDueSources, syncSource, addSource, updateSource, removeSource, ensureEnvSource,
+  publicSource, syncSource, addSource, updateSource, removeSource, ensureEnvSource, fetchSnapshot, applySnapshot,
+  recordSyncFailure, isDue, cleanEnv,
 } from './sources.js'
 
 const MAX_MESSAGES = 1000
@@ -54,7 +56,7 @@ function initWorld(stored) {
   return world
 }
 
-const adminToken = (world) => process.env.HUB_ADMIN_TOKEN || world.hubToken
+const adminToken = (world) => cleanEnv(process.env.HUB_ADMIN_TOKEN) || world.hubToken
 
 // Queries against one world snapshot.
 function q(world) {
@@ -229,12 +231,42 @@ function simulateCatchUp(world, now) {
   world.lastSimAt = now
 }
 
-async function catchUp(world, { syncSources }) {
+async function catchUp(world) {
   const now = Date.now()
   sweepOffline(world, now)
   simulateCatchUp(world, now)
-  if (syncSources) await syncDueSources(world, now)
   if (world.messages.length > MAX_MESSAGES) world.messages.splice(0, world.messages.length - MAX_MESSAGES)
+}
+
+// Remote feeds can take seconds, so they never run inside a request's world transaction:
+// read which sources are due → fetch them with no lock held → apply the results in a short second transaction.
+// Scheduled with next/server's after(), i.e. once the response is already on its way (waitUntil on Vercel).
+const syncing = (globalThis.__agentHqSyncing ||= new Set())
+async function syncDueInBackground() {
+  const now = Date.now()
+  const { result: due } = await withWorld(initWorld, (world) =>
+    world.sources.filter((s) => isDue(s, now) && !syncing.has(s.id)).map((s) => ({ ...s })),
+  )
+  if (!due.length) return
+  due.forEach((s) => syncing.add(s.id))
+  try {
+    const results = await Promise.all(
+      due.map((s) => fetchSnapshot(s).then((snap) => ({ s, snap }), (error) => ({ s, error }))),
+    )
+    await withWorld(initWorld, (world) => {
+      for (const { s, snap, error } of results) {
+        const src = world.sources.find((x) => x.id === s.id)
+        if (!src || src.url !== s.url || src.token !== s.token) continue // edited meanwhile — result is stale
+        if (error) recordSyncFailure(world, src, error, now)
+        else {
+          src.lastAttemptAt = now
+          applySnapshot(world, src, snap, now)
+        }
+      }
+    })
+  } finally {
+    due.forEach((s) => syncing.delete(s.id))
+  }
 }
 
 // ---------------------------------------------------------------- routing
@@ -562,10 +594,11 @@ export async function handle(req, segments) {
   }
 
   try {
-    // Only the UI poll and hub views pull from remote sources, so agent heartbeats stay fast.
+    // The UI poll and hub views keep remote sources fresh — after responding, so they never wait on a feed.
     const syncSources = req.method === 'GET' && ['/api/state', '/api/hub', '/api/offices'].some((p) => pathname === p || pathname.startsWith('/api/offices/'))
+    if (syncSources) after(() => syncDueInBackground().catch((err) => console.error('[agent-hq] source sync', err)))
     const { result, version } = await withWorld(initWorld, async (world) => {
-      await catchUp(world, { syncSources })
+      await catchUp(world)
       const token = req.headers.get('x-hub-token') || url.searchParams.get('token')
       const admin = !!token && token === adminToken(world)
       const officeKey = req.headers.get('x-office-key')

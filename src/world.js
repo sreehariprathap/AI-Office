@@ -62,10 +62,12 @@ export function layoutFloor(office, agents) {
 
   const suites = Math.max(1, bosses.length)
   const topW = PAD * 2 + suites * SUITE_W + MEET_W + BREAK_W
-  const wantCols = Math.min(10, Math.max(4, Math.ceil(Math.sqrt((workers.length + 1) * 2.2))))
+  // Synced offices are managed by their source, so there is no open seat to hire into.
+  const seats = workers.length + (office?.external ? 0 : 1)
+  const wantCols = Math.min(10, Math.max(4, Math.ceil(Math.sqrt(seats * 2.2))))
   const W = Math.max(topW, PAD * 2 + wantCols * CELL_W + 24)
   const cols = Math.floor((W - PAD * 2 - 24) / CELL_W)
-  const rows = Math.max(1, Math.ceil((workers.length + 1) / cols))
+  const rows = Math.max(1, Math.ceil(seats / cols))
   const workY = PAD + TOP_H + CORRIDOR_H
   const workH = 44 + rows * CELL_H + 18
   const H = workY + workH + PAD
@@ -89,7 +91,7 @@ export function layoutFloor(office, agents) {
   const gridW = cols * CELL_W
   const gx = work.x + (work.w - gridW) / 2
   const desks = []
-  for (let i = 0; i < workers.length + 1; i++) {
+  for (let i = 0; i < seats; i++) {
     const c = i % cols
     const r = Math.floor(i / cols)
     desks.push({ x: gx + c * CELL_W, y: work.y + 40 + r * CELL_H, agent: workers[i] || null })

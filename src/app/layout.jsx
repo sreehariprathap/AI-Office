@@ -1,8 +1,13 @@
-import { Silkscreen, VT323 } from 'next/font/google'
+import { Baloo_2, Nunito } from 'next/font/google'
 import '../styles.css'
 
-const pixel = Silkscreen({ weight: ['400', '700'], subsets: ['latin'], variable: '--font-pixel', display: 'swap' })
-const body = VT323({ weight: '400', subsets: ['latin'], variable: '--font-body', display: 'swap' })
+// Swapped from Silkscreen/VT323 (true bitmap-simulation fonts, illegible
+// at small sizes and part of why the whole hub read as "pixelated") to a
+// rounded display face for headers/labels and a clean humanist sans for
+// everything read at length -- same warm, friendly office-app tone as
+// the reference art, without sacrificing legibility.
+const pixel = Baloo_2({ weight: ['500', '600', '700'], subsets: ['latin'], variable: '--font-pixel', display: 'swap' })
+const body = Nunito({ weight: ['400', '600', '700'], subsets: ['latin'], variable: '--font-body', display: 'swap' })
 
 export const metadata = {
   title: 'Agent HQ',

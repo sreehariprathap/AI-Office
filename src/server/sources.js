@@ -4,8 +4,8 @@
 //   { protocol, source: {id, name}, generatedAt,
 //     offices: [{ slug, name, theme, floor, description, agents: [...], connections: [{from, to, kind, label}], stats }],
 //     messages: [{ id, from, to, type, text, ts, data }] }
-// There are no background timers (serverless): a request that finds a source older than its interval syncs it
-// before answering. Every id is namespaced by source; synced records are marked `external` + `source`, so the source
+// There are no background timers (serverless): UI polls schedule a sync of any source older than its interval,
+// run after the response (see syncDueInBackground in hub.js). Every id is namespaced by source; synced records are marked `external` + `source`, so the source
 // stays their owner and the hub never edits them.
 import { randomUUID } from 'node:crypto'
 
@@ -23,7 +23,7 @@ export const publicSource = ({ token, ...s }) => ({ ...s, hasToken: !!token })
 const ns = (src, id) => `${src.id}:${id}`
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 
-async function fetchSnapshot(src) {
+export async function fetchSnapshot(src) {
   const url = new URL(src.url)
   // Re-read a small overlap: a row committed late with an earlier timestamp would otherwise be skipped.
   // Message ids are deduped in apply(), so the overlap never double-posts.
@@ -180,33 +180,35 @@ export function applySnapshot(world, src, snap, now = Date.now()) {
   })
 }
 
-export async function syncSource(world, src, now = Date.now()) {
-  if (!src.enabled) return
+export function recordSyncFailure(world, src, err, now = Date.now()) {
   src.lastAttemptAt = now
-  try {
-    applySnapshot(world, src, await fetchSnapshot(src), now)
-  } catch (err) {
-    const failures = (src.failures || 0) + 1
-    const lastError = err.name === 'TimeoutError' || err.name === 'AbortError' ? 'timed out' : err.message
-    Object.assign(src, { status: 'error', lastError, failures })
-    if (failures >= FAILS_BEFORE_OFFLINE) {
-      // Unreachable source: keep its floor plan, but stop pretending its agents are alive.
-      for (const a of world.agents) {
-        if (a.source === src.id && a.status !== 'offline') {
-          a.status = 'offline'
-          a.task = `Source unreachable: ${lastError}`
-        }
+  const failures = (src.failures || 0) + 1
+  const lastError = err.name === 'TimeoutError' || err.name === 'AbortError' ? 'timed out' : err.message
+  Object.assign(src, { status: 'error', lastError, failures })
+  if (failures >= FAILS_BEFORE_OFFLINE) {
+    // Unreachable source: keep its floor plan, but stop pretending its agents are alive.
+    for (const a of world.agents) {
+      if (a.source === src.id && a.status !== 'offline') {
+        a.status = 'offline'
+        a.task = `Source unreachable: ${lastError}`
       }
     }
   }
 }
 
-/** Sync every enabled source whose interval has elapsed. Runs sources in parallel. */
-export async function syncDueSources(world, now = Date.now(), { force = false } = {}) {
-  const due = world.sources.filter((s) => s.enabled && (force || !s.lastAttemptAt || now - s.lastAttemptAt >= (s.intervalSec || 10) * 1000))
-  await Promise.all(due.map((s) => syncSource(world, s, now)))
-  return due.length
+/** Fetch + apply in one go — for user-initiated syncs (add / edit / "Sync now"). */
+export async function syncSource(world, src, now = Date.now()) {
+  if (!src.enabled) return
+  try {
+    const snap = await fetchSnapshot(src)
+    src.lastAttemptAt = now
+    applySnapshot(world, src, snap, now)
+  } catch (err) {
+    recordSyncFailure(world, src, err, now)
+  }
 }
+
+export const isDue = (src, now = Date.now()) => src.enabled && (!src.lastAttemptAt || now - src.lastAttemptAt >= (src.intervalSec || 10) * 1000)
 
 // Drop everything a source mirrored, so a different system never inherits the previous one's agents.
 export function purgeSource(world, src) {
@@ -260,10 +262,13 @@ export function removeSource(world, src) {
 }
 
 /** WORKFORCE_URL / WORKFORCE_TOKEN in the environment define (and keep in step) the AI Workforce source. */
+// Dashboard-pasted env values often carry wrapping quotes, spaces or a trailing (escaped) newline.
+export const cleanEnv = (v) => String(v || '').trim().replace(/^(['"])(.*)\1$/s, '$2').replace(/(\\n|\n|\r)+$/, '').trim()
+
 export function ensureEnvSource(world) {
-  const url = process.env.WORKFORCE_URL
+  const url = cleanEnv(process.env.WORKFORCE_URL)
   if (!url) return
-  const token = process.env.WORKFORCE_TOKEN || ''
+  const token = cleanEnv(process.env.WORKFORCE_TOKEN)
   const existing = world.sources.find((s) => s.id === ENV_SOURCE_ID)
   if (!existing) addSource(world, { id: ENV_SOURCE_ID, name: "Sreehari's AI Workforce", url, token })
   else if (existing.url !== url || (token && existing.token !== token)) updateSource(world, existing, { url, token: token || existing.token })

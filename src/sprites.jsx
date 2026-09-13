@@ -1,52 +1,92 @@
 // Hand-placed pixel art rendered as SVG rects (crispEdges). 1 unit = 1 art pixel.
 const R = ({ x, y, w = 1, h = 1, f, o }) => <rect x={x} y={y} width={w} height={h} fill={f} opacity={o} />
 
+// Flat-illustration people (rounded shapes, not 1px "pixel" rects) --
+// same look-object contract (skin/hair/shirt/jacket/pants/style/tie) and
+// the same .person/.arm-l/.arm-r/.legs classnames the CSS tap/walk/legs
+// keyframes already target, so callers and animations are untouched.
+// Roughly the same 0..16 x / -3..18 y footprint the old figure used, so
+// OfficeFloor.jsx's hitbox/tag/status-icon offsets (tuned against that
+// box) still line up without needing their own changes.
+function darken(hex, amt) {
+  if (typeof hex !== 'string' || hex[0] !== '#') return '#00000030'
+  const n = parseInt(hex.slice(1), 16)
+  const clamp = (v) => Math.max(0, Math.min(255, v))
+  const r = clamp(((n >> 16) & 255) - amt)
+  const g = clamp(((n >> 8) & 255) - amt)
+  const b = clamp((n & 255) - amt)
+  return `rgb(${r},${g},${b})`
+}
+
 export function Person({ look, seated = false, typing = false, walking = false }) {
   const { skin, hair, shirt, jacket, pants, style, tie } = look
   const body = jacket || shirt
+  const bodyShade = darken(body, 28)
   return (
     <g className={`person ${typing ? 'typing' : ''} ${walking ? 'walking' : ''}`}>
-      <R x={3} y={seated ? 13 : 17} w={10} h={2} f="#000" o={0.25} />
-      {/* legs */}
+      <ellipse cx={8} cy={seated ? 13.5 : 17.5} rx={6} ry={1.3} fill="#000" opacity={0.22} />
+
+      {/* legs -- omitted seated (the chair + desk read as "sitting" on
+          their own; bent seated legs at this scale just look like noise) */}
       {!seated && (
         <g className="legs">
-          <R x={5} y={12} w={6} h={3} f={pants} />
-          <R x={5} y={15} w={2} h={1} f={pants} />
-          <R x={9} y={15} w={2} h={1} f={pants} />
-          <R x={4} y={16} w={3} h={1} f="#1b1b1b" />
-          <R x={9} y={16} w={3} h={1} f="#1b1b1b" />
+          <rect x={4.6} y={11.5} width={2.6} height={5} rx={1.2} fill={pants} />
+          <rect x={8.8} y={11.5} width={2.6} height={5} rx={1.2} fill={pants} />
+          <rect x={4.2} y={15.5} width={3.2} height={1.6} rx={0.8} fill="#20242c" />
+          <rect x={8.6} y={15.5} width={3.2} height={1.6} rx={0.8} fill="#20242c" />
         </g>
       )}
+
       {/* torso */}
-      <R x={4} y={7} w={8} h={5} f={body} />
-      {jacket && <R x={6} y={7} w={4} h={3} f={shirt} />}
-      {tie && <R x={7} y={7} w={2} h={4} f={tie} />}
-      {/* arms */}
-      <g className="arm-l">
-        <R x={3} y={7} w={1} h={4} f={body} />
-        <R x={3} y={11} w={1} h={1} f={skin} />
-      </g>
-      <g className="arm-r">
-        <R x={12} y={7} w={1} h={4} f={body} />
-        <R x={12} y={11} w={1} h={1} f={skin} />
-      </g>
-      {/* head */}
-      <R x={7} y={6} w={2} h={1} f={skin} />
-      <R x={5} y={1} w={6} h={5} f={skin} />
-      <R x={6} y={3} w={1} h={1} f="#1b1b1b" />
-      <R x={9} y={3} w={1} h={1} f="#1b1b1b" />
-      {/* hair */}
-      <R x={5} y={0} w={6} h={1} f={hair} />
-      <R x={4} y={1} w={8} h={1} f={hair} />
-      <R x={4} y={2} w={1} h={2} f={hair} />
-      <R x={11} y={2} w={1} h={2} f={hair} />
-      {style === 1 && (
+      <rect x={3.2} y={8.6} width={9.6} height={6.6} rx={3.2} fill={body} />
+      {jacket && (
         <>
-          <R x={4} y={4} w={1} h={4} f={hair} />
-          <R x={11} y={4} w={1} h={4} f={hair} />
+          {/* lapels: two shaded triangles framing the shirt underneath */}
+          <path d="M6.6,8.9 L8,11.4 L6.9,13.4 L5.6,10.4 Z" fill={bodyShade} />
+          <path d="M9.4,8.9 L8,11.4 L9.1,13.4 L10.4,10.4 Z" fill={bodyShade} />
+          <path d="M6.7,8.7 L8,9.8 L9.3,8.7 L9.3,11.6 L8,15 L6.7,11.6 Z" fill={shirt} />
         </>
       )}
-      {style === 2 && <R x={6} y={-2} w={4} h={2} f={hair} />}
+      {tie && <path d="M7.4,9.6 L8.6,9.6 L9,12 L8,14.4 L7,12 Z" fill={tie} />}
+
+      {/* arms */}
+      <g className="arm-l">
+        <rect x={1.6} y={9} width={2.3} height={5.6} rx={1.15} fill={body} />
+        <circle cx={2.75} cy={15} r={1.15} fill={skin} />
+      </g>
+      <g className="arm-r">
+        <rect x={12.1} y={9} width={2.3} height={5.6} rx={1.15} fill={body} />
+        <circle cx={13.25} cy={15} r={1.15} fill={skin} />
+      </g>
+
+      {/* neck + head */}
+      <rect x={6.9} y={7.4} width={2.2} height={1.8} fill={skin} />
+      <circle cx={8} cy={4.4} r={4.05} fill={skin} />
+      <ellipse cx={6.35} cy={4.6} rx={0.5} ry={0.6} fill="#20242c" />
+      <ellipse cx={9.65} cy={4.6} rx={0.5} ry={0.6} fill="#20242c" />
+      <path d="M6.5,6.35 q1.5,1.15 3,0" stroke="#00000050" strokeWidth={0.5} fill="none" strokeLinecap="round" />
+
+      {/* hair -- a back cap (drawn first, peeks past the face circle) plus
+          a style-specific silhouette (short sides / long / bun) */}
+      <path d="M3.85,4.6 a4.15,4.15 0 0 1 8.3,0 v-0.5 a4.15,4.3 0 0 0 -8.3,0 z" fill={hair} />
+      {style === 0 && (
+        <>
+          <path d="M3.85,3.6 a4.15,3.4 0 0 1 8.3,0 l-0.5,1.6 q-3.65,-1.5 -7.3,0 z" fill={hair} />
+        </>
+      )}
+      {style === 1 && (
+        <>
+          <path d="M3.85,3.6 a4.15,3.4 0 0 1 8.3,0 l-0.5,1.6 q-3.65,-1.5 -7.3,0 z" fill={hair} />
+          <path d="M3.5,3.6 q-1.1,3 -0.4,7.4 q1.1,0.3 1.3,-0.6 q-0.9,-3.4 0,-6.6 z" fill={hair} />
+          <path d="M12.5,3.6 q1.1,3 0.4,7.4 q-1.1,0.3 -1.3,-0.6 q0.9,-3.4 0,-6.6 z" fill={hair} />
+        </>
+      )}
+      {style === 2 && (
+        <>
+          <path d="M3.85,3.7 a4.15,3.3 0 0 1 8.3,0 l-0.4,1.3 q-3.75,-1.3 -7.5,0 z" fill={hair} />
+          <circle cx={8} cy={0.15} r={1.55} fill={hair} />
+        </>
+      )}
     </g>
   )
 }
@@ -184,7 +224,7 @@ export function Board({ x, y, w = 40 }) {
 // Big portrait used in the side panel
 export function Portrait({ look, size = 72 }) {
   return (
-    <svg width={size} height={size} viewBox="-2 -4 20 22" shapeRendering="crispEdges" className="portrait">
+    <svg width={size} height={size} viewBox="-3 -3.5 22 24" className="portrait">
       <Person look={look} />
     </svg>
   )
