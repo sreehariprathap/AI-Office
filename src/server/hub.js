@@ -4,7 +4,7 @@
 // due source syncs) → run the route → save if anything changed. No timers, no sockets, no in-memory state
 // that has to survive between requests — so it runs the same under `next dev` and on Vercel.
 import { randomUUID } from 'node:crypto'
-import { after } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { buildSeed } from './seed.js'
 import {
   ensureBuildings, buildingSummary, createBuilding, buildingBySlug, floorsOf, canBecomeLandmark,
@@ -13,8 +13,9 @@ import {
 import { withWorld, storageKind } from './store.js'
 import {
   publicSource, syncSource, addSource, updateSource, removeSource, ensureEnvSource, fetchSnapshot, applySnapshot,
-  recordSyncFailure, isDue, cleanEnv,
+  recordSyncFailure, isDue,
 } from './sources.js'
+import { adminToken, isLocalHost, hostOf, isHttps, SESSION_COOKIE, SESSION_MAX_AGE_SEC } from './session.js'
 
 const MAX_MESSAGES = 1000
 const CLIENT_MESSAGES = 300
@@ -61,8 +62,6 @@ function initWorld(stored) {
   ensureBuildings(world)   // adopts any office that predates buildings; no-op afterwards
   return world
 }
-
-const adminToken = (world) => cleanEnv(process.env.HUB_ADMIN_TOKEN) || world.hubToken
 
 // Queries against one world snapshot.
 function q(world) {
@@ -305,11 +304,20 @@ route('GET', '/api/health', ({ world }) => ({ ok: true, storage: storageKind, of
 
 // UI bootstrap: hands the admin token to a browser on localhost only (never on a deployment).
 route('GET', '/api/session', ({ world, req }) => {
-  const host = (req.headers.get('host') || '').split(':')[0]
-  const local = !process.env.VERCEL && ['localhost', '127.0.0.1', '[::1]'].includes(host)
-  // Deployments never hand it out; the UI then asks for HUB_ADMIN_TOKEN.
-  return local ? { hubToken: adminToken(world) } : { hubToken: null, reason: 'paste HUB_ADMIN_TOKEN into the UI' }
+  return isLocalHost(hostOf(req)) ? { hubToken: adminToken(world) } : { hubToken: null, reason: 'paste HUB_ADMIN_TOKEN into the UI' }
 })
+
+route('POST', '/api/login', ({ world, req, body }) => {
+  const token = adminToken(world)
+  if (!body.token || body.token !== token) fail(401, 'invalid token')
+  return [200, { ok: true }, { name: SESSION_COOKIE, value: token, maxAge: SESSION_MAX_AGE_SEC, secure: isHttps(req) }]
+})
+
+route('POST', '/api/logout', ({ req }) => [
+  200,
+  { ok: true },
+  { name: SESSION_COOKIE, value: '', maxAge: 0, secure: isHttps(req) },
+])
 
 route('GET', '/api/hub', ({ world, url }) => {
   const { officeView, connectionView } = q(world)
@@ -624,7 +632,14 @@ const CORS = {
   'access-control-allow-headers': 'content-type, x-office-key, x-hub-token',
   'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
 }
-const json = (status, body) => Response.json(body, { status, headers: { ...CORS, 'cache-control': 'no-store' } })
+// `cookie`, when given, is `{ name, value, maxAge, secure }` -- the shape
+// /api/login and /api/logout return. NextResponse (not the plain Response
+// used before) is what exposes `.cookies.set(...)`.
+const json = (status, body, cookie) => {
+  const res = NextResponse.json(body, { status, headers: { ...CORS, 'cache-control': 'no-store' } })
+  if (cookie) res.cookies.set(cookie.name, cookie.value, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: cookie.maxAge, secure: cookie.secure })
+  return res
+}
 
 export async function handle(req, segments) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
@@ -659,7 +674,7 @@ export async function handle(req, segments) {
     if (syncSources) after(() => syncDueInBackground().catch((err) => console.error('[agent-hq] source sync', err)))
     const { result, version } = await withWorld(initWorld, async (world) => {
       await catchUp(world)
-      const token = req.headers.get('x-hub-token') || url.searchParams.get('token')
+      const token = req.headers.get('x-hub-token') || url.searchParams.get('token') || req.cookies.get(SESSION_COOKIE)?.value
       const admin = !!token && token === adminToken(world)
       const officeKey = req.headers.get('x-office-key')
       const can = (office) => admin || (!!office && !!officeKey && officeKey === office.apiKey)
@@ -669,8 +684,8 @@ export async function handle(req, segments) {
       const known = Number(url.searchParams.get('v'))
       return json(200, known && known === version ? { version, unchanged: true } : { ...result, version })
     }
-    const [status, payload] = Array.isArray(result) && typeof result[0] === 'number' ? result : [200, result]
-    return json(status, payload)
+    const [status, payload, cookie] = Array.isArray(result) && typeof result[0] === 'number' ? result : [200, result]
+    return json(status, payload, cookie)
   } catch (err) {
     if (err instanceof HttpError) return json(err.status, { error: err.message })
     console.error('[agent-hq]', req.method, pathname, err)
