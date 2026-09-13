@@ -8,9 +8,7 @@ import { withWorld } from './server/store.js'
 import { initWorld } from './server/hub.js'
 import { SESSION_COOKIE, SESSION_MAX_AGE_SEC, adminToken, isLocalHost, hostOf, isHttps } from './server/session.js'
 
-export const runtime = 'nodejs'
-
-export async function middleware(req) {
+export async function proxy(req) {
   if (req.nextUrl.pathname === '/login') return NextResponse.next()
 
   const { result: token } = await withWorld(initWorld, async (world) => adminToken(world))
