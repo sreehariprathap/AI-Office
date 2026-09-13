@@ -20,6 +20,8 @@ export const buildingBySlug = (world, slug) =>
 export const floorsOf = (world, building) =>
   world.offices.filter((o) => o.buildingId === building.id)
 
+const STATUSES = ['working', 'idle', 'meeting', 'error', 'offline']
+
 function uniqueSlug(world, base) {
   let slug = slugify(base)
   while (world.buildings.some((b) => b.slug === slug)) slug += '-' + Math.floor(Math.random() * 90 + 10)
@@ -80,4 +82,35 @@ export function ensureBuildings(world) {
     office.buildingId = headOffice.id
   }
   return world
+}
+
+/**
+ * The rollup a building shows on the map: its floors plus the totals across
+ * them. Pure — takes a world, returns data, touches no HTTP concerns.
+ */
+export function buildingSummary(world, building) {
+  const floors = floorsOf(world, building)
+  const agentsIn = (office) => world.agents.filter((a) => a.officeId === office.id)
+  const all = floors.flatMap(agentsIn)
+  const count = (status) => all.filter((a) => a.status === status).length
+  return {
+    ...building,
+    endpoint: `/api/buildings/${building.slug}`,
+    floors: floors.map((o) => {
+      const agents = agentsIn(o)
+      return {
+        id: o.id,
+        slug: o.slug,
+        name: o.name,
+        theme: o.theme,
+        numberOfAgents: agents.length,
+        online: agents.filter((a) => a.status !== 'offline').length,
+        stats: Object.fromEntries(STATUSES.map((s) => [s, agents.filter((a) => a.status === s).length])),
+      }
+    }),
+    numberOfFloors: floors.length,
+    numberOfAgents: all.length,
+    online: all.filter((a) => a.status !== 'offline').length,
+    stats: Object.fromEntries(STATUSES.map((s) => [s, count(s)])),
+  }
 }

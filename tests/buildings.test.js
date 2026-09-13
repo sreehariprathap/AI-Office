@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createBuilding, buildingForSource, ensureBuildings, floorsOf, buildingBySlug } from '../src/server/buildings.js'
+import { createBuilding, buildingForSource, ensureBuildings, floorsOf, buildingBySlug, buildingSummary } from '../src/server/buildings.js'
 import { buildSeed } from '../src/server/seed.js'
 
 const emptyWorld = (over = {}) => ({ buildings: [], offices: [], agents: [], sources: [], ...over })
@@ -66,6 +66,24 @@ test('floorsOf and buildingBySlug read back what was written', () => {
   const b = buildingBySlug(world, world.buildings[0].slug)
   assert.equal(floorsOf(world, b).length, 1)
   assert.equal(buildingBySlug(world, 'nope'), undefined)
+})
+
+test('buildingSummary rolls floor and agent counts up from offices', () => {
+  const world = emptyWorld({
+    offices: [{ id: 'o1', slug: 'a', name: 'A', theme: 'teal' }, { id: 'o2', slug: 'b', name: 'B', theme: 'teal' }],
+    agents: [
+      { id: 'a1', officeId: 'o1', status: 'working' },
+      { id: 'a2', officeId: 'o1', status: 'error' },
+      { id: 'a3', officeId: 'o2', status: 'offline' },
+    ],
+  })
+  ensureBuildings(world)
+  const view = buildingSummary(world, world.buildings[0])
+  assert.equal(view.numberOfFloors, 2)
+  assert.equal(view.numberOfAgents, 3)
+  assert.equal(view.online, 2, 'offline agents are not online')
+  assert.equal(view.stats.error, 1)
+  assert.equal(view.floors[0].numberOfAgents, 2)
 })
 
 test('buildSeed produces buildings and every office belongs to one', () => {

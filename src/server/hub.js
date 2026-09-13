@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { after } from 'next/server'
 import { buildSeed } from './seed.js'
-import { ensureBuildings } from './buildings.js'
+import { ensureBuildings, buildingSummary } from './buildings.js'
 import { withWorld, storageKind } from './store.js'
 import {
   publicSource, syncSource, addSource, updateSource, removeSource, ensureEnvSource, fetchSnapshot, applySnapshot,
@@ -110,7 +110,8 @@ function q(world) {
       },
     }
   }
-  return { officeBySlug, agentById, officeOf, agentView, connectionView, officeView }
+  const buildingView = (b) => buildingSummary(world, b)
+  return { officeBySlug, agentById, officeOf, agentView, connectionView, officeView, buildingView }
 }
 
 // ---------------------------------------------------------------- mutations
@@ -286,6 +287,7 @@ route('GET', '/api/state', ({ world, admin }) => {
   return {
     storage: storageKind,
     admin,
+    buildings: world.buildings.map((b) => q(world).buildingView(b)),
     offices: world.offices.map((o) => (admin ? o : stripOffice(o))),
     agents: world.agents,
     connections: world.connections,
