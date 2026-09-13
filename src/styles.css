@@ -437,3 +437,6 @@ code { font-family: var(--body); background: #0006; padding: 0 4px; }
 .crane { cursor: pointer; }
 .crane:hover rect:nth-of-type(4) { stroke: #fff; }
 .floor-no { font-family: var(--body); font-size: 15px; color: var(--muted); }
+
+/* ------------------------------------------------ town map */
+.bsign { font-family: var(--pixel); font-weight: 700; font-size: 13px; fill: #2a1d12; pointer-events: none; }
