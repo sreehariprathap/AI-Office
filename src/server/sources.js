@@ -8,6 +8,7 @@
 // run after the response (see syncDueInBackground in hub.js). Every id is namespaced by source; synced records are marked `external` + `source`, so the source
 // stays their owner and the hub never edits them.
 import { randomUUID } from 'node:crypto'
+import { buildingForSource, floorsOf } from './buildings.js'
 
 const STATUSES = ['working', 'idle', 'meeting', 'error', 'offline']
 const KINDS = ['reports_to', 'collab', 'data', 'bridge']
@@ -51,6 +52,8 @@ function uniqueSlug(world, base) {
 }
 
 export function applySnapshot(world, src, snap, now = Date.now()) {
+  world.buildings ||= []
+  const building = buildingForSource(world, src)
   const seenOffices = new Set()
   const seenAgents = new Set()
   const seenLinks = new Set()
@@ -63,6 +66,7 @@ export function applySnapshot(world, src, snap, now = Date.now()) {
     const next = {
       id,
       slug: office?.slug || uniqueSlug(world, o.slug),
+      buildingId: building.id,
       name: String(o.name || o.slug).slice(0, 40),
       theme: THEMES.includes(o.theme) ? o.theme : office?.theme || 'slate',
       floor: ['carpet', 'tile', 'checker', 'wood'].includes(o.floor) ? o.floor : 'carpet',
@@ -219,6 +223,10 @@ export function purgeSource(world, src) {
   world.messages = world.messages.filter((m) => !mine(m))
   const alive = new Set(world.agents.map((a) => a.id))
   world.connections = world.connections.filter((c) => alive.has(c.from) && alive.has(c.to))
+  // Drop the source's building too, unless hand-made floors were moved into it.
+  world.buildings = (world.buildings || []).filter(
+    (b) => b.sourceId !== src.id || floorsOf(world, b).length > 0,
+  )
 }
 
 export function addSource(world, { name, url, token = '', intervalSec = 10, id }) {

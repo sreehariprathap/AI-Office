@@ -5,6 +5,7 @@ import {
   resolveBuilding,
 } from '../src/server/buildings.js'
 import { buildSeed } from '../src/server/seed.js'
+import { applySnapshot, purgeSource } from '../src/server/sources.js'
 
 const emptyWorld = (over = {}) => ({ buildings: [], offices: [], agents: [], sources: [], ...over })
 
@@ -126,4 +127,34 @@ test('buildSeed produces buildings and every office belongs to one', () => {
     assert.ok(office.buildingId, `office ${office.slug} has a buildingId`)
     assert.ok(seed.buildings.some((b) => b.id === office.buildingId), 'buildingId resolves')
   }
+})
+
+const snapshot = (offices) => ({
+  protocol: 'agent-hq/v1',
+  source: { id: 'ai-workforce', name: 'Workforce' },
+  offices,
+  messages: [],
+})
+
+test('applySnapshot puts every synced office in the source building', () => {
+  const world = { buildings: [], offices: [], agents: [], connections: [], messages: [], sources: [] }
+  const src = { id: 'src-1', name: 'Workforce', remoteName: 'Workforce' }
+  world.sources.push(src)
+  applySnapshot(world, src, snapshot([
+    { slug: 'crypto', name: 'Crypto Desk', agents: [], connections: [] },
+    { slug: 'india', name: 'India Desk', agents: [], connections: [] },
+  ]))
+  const building = world.buildings.find((b) => b.sourceId === 'src-1')
+  assert.ok(building)
+  assert.equal(floorsOf(world, building).length, 2)
+})
+
+test('purgeSource removes the source building when nothing hand-made is left', () => {
+  const world = { buildings: [], offices: [], agents: [], connections: [], messages: [], sources: [] }
+  const src = { id: 'src-1', name: 'Workforce', remoteName: 'Workforce' }
+  world.sources.push(src)
+  applySnapshot(world, src, snapshot([{ slug: 'crypto', name: 'Crypto Desk', agents: [], connections: [] }]))
+  purgeSource(world, src)
+  assert.equal(world.buildings.filter((b) => b.sourceId === 'src-1').length, 0)
+  assert.equal(world.offices.length, 0)
 })
