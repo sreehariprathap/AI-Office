@@ -163,7 +163,7 @@ function FloorView({ f, L, onOpen, onSelectAgent, buzz }) {
   )
 }
 
-export default function Building({ offices, agents, messages, onOpen, onSelectAgent, onAddFloor, addLabel, title, zoom }) {
+export default function Building({ building, offices, agents, messages, onOpen, onSelectAgent, onAddFloor, addLabel, title, zoom }) {
   const L = useMemo(() => layout(offices, agents), [offices, agents])
   const floorOf = useMemo(() => {
     const map = {}
@@ -219,6 +219,19 @@ export default function Building({ offices, agents, messages, onOpen, onSelectAg
   const busy = Object.keys(buzz).length > 0
   const roofY = L.top - ROOF_H
   const H = L.H
+
+  if (!offices.length) {
+    return (
+      <div className="empty">
+        <p>No floors in {building?.name || 'this building'} yet.</p>
+        {addLabel && (
+          <button className="primary" onClick={onAddFloor}>
+            {addLabel}
+          </button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <svg className="building" viewBox={`0 0 ${W} ${H}`} width={W * zoom} height={H * zoom} shapeRendering="crispEdges">
