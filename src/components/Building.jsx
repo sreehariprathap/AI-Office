@@ -223,10 +223,30 @@ export default function Building({ offices, agents, messages, onOpen, onSelectAg
   return (
     <svg className="building" viewBox={`0 0 ${W} ${H}`} width={W * zoom} height={H * zoom} shapeRendering="crispEdges">
       <defs>
+        {/* Warm dusk instead of a flat cool night -- the "diorama" read
+            (Link's Awakening remake style) leans on a warm light source
+            and soft depth, not a uniform dark backdrop. */}
         <linearGradient id="bsky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#101a30" />
-          <stop offset="1" stopColor="#2c3f5c" />
+          <stop offset="0" stopColor="#1a1a3a" />
+          <stop offset="0.55" stopColor="#3a3466" />
+          <stop offset="0.8" stopColor="#8a5a72" />
+          <stop offset="1" stopColor="#e8a668" />
         </linearGradient>
+        <radialGradient id="moonglow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#ffe9b8" stopOpacity="0.9" />
+          <stop offset="0.6" stopColor="#ffd88a" stopOpacity="0.25" />
+          <stop offset="1" stopColor="#ffd88a" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="vignette" cx="0.5" cy="0.42" r="0.75">
+          <stop offset="0.6" stopColor="#000" stopOpacity="0" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.45" />
+        </radialGradient>
+        {/* Soft depth-of-field on the far background only -- the building
+            itself (and everyone in it) stays crisp, same trick a tilt-
+            shift diorama shot uses to read as "miniature and cozy." */}
+        <filter id="soft-blur" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3.2" />
+        </filter>
         <pattern id="tex-carpet" width="12" height="12" patternUnits="userSpaceOnUse">
           <rect x="4" y="7" width="1" height="1" fill="#000" opacity=".25" />
           <rect x="9" y="2" width="1" height="1" fill="#fff" opacity=".08" />
@@ -245,16 +265,20 @@ export default function Building({ offices, agents, messages, onOpen, onSelectAg
       </defs>
 
       <rect width={W} height={H} fill="url(#bsky)" />
-      {Array.from({ length: 50 }).map((_, i) => (
-        <rect key={i} x={(i * 131) % W} y={(i * 71) % Math.max(200, H - 300)} width={2} height={2} fill="#fff" opacity={0.25 + ((i * 7) % 5) / 10} className={i % 5 === 0 ? 'twinkle' : ''} />
-      ))}
-      {/* distant skyline on both sides */}
-      {Array.from({ length: Math.ceil(W / 36) }).map((_, i) => {
-        const h = 60 + ((i * 53) % 160)
-        const x = i * 36
-        if (x > BX - 30 && x < BX + BW) return null
-        return <rect key={i} x={x} y={H - GROUND_PAD - h} width={34} height={h} fill="#1b2940" />
-      })}
+      <g filter="url(#soft-blur)">
+        <circle cx={W * 0.78} cy={H * 0.16} r={140} fill="url(#moonglow)" />
+        <circle cx={W * 0.78} cy={H * 0.16} r={26} fill="#fff6de" opacity={0.9} />
+        {Array.from({ length: 50 }).map((_, i) => (
+          <rect key={i} x={(i * 131) % W} y={(i * 71) % Math.max(200, H - 300)} width={2} height={2} fill="#fff" opacity={0.25 + ((i * 7) % 5) / 10} className={i % 5 === 0 ? 'twinkle' : ''} />
+        ))}
+        {/* distant skyline on both sides */}
+        {Array.from({ length: Math.ceil(W / 36) }).map((_, i) => {
+          const h = 60 + ((i * 53) % 160)
+          const x = i * 36
+          if (x > BX - 30 && x < BX + BW) return null
+          return <rect key={i} x={x} y={H - GROUND_PAD - h} width={34} height={h} fill="#2a2450" />
+        })}
+      </g>
 
       {/* roof */}
       <g>
@@ -350,6 +374,12 @@ export default function Building({ offices, agents, messages, onOpen, onSelectAg
       {Array.from({ length: Math.ceil(W / 48) }).map((_, i) => (
         <rect key={i} x={i * 48 + 12} y={L.lobbyY + LOBBY_H + 34} width={24} height={3} fill="#e9d36b" opacity={0.6} />
       ))}
+
+      {/* Painted-corner vignette, drawn last so it frames the whole
+          scene -- the other half of the diorama read alongside the
+          background blur above. pointer-events:none so it never eats a
+          click meant for a desk/floor underneath it. */}
+      <rect width={W} height={H} fill="url(#vignette)" pointerEvents="none" />
     </svg>
   )
 }

@@ -1,3 +1,5 @@
+import { useId } from 'react'
+
 // Hand-placed pixel art rendered as SVG rects (crispEdges). 1 unit = 1 art pixel.
 const R = ({ x, y, w = 1, h = 1, f, o }) => <rect x={x} y={y} width={w} height={h} fill={f} opacity={o} />
 
@@ -22,8 +24,26 @@ export function Person({ look, seated = false, typing = false, walking = false }
   const { skin, hair, shirt, jacket, pants, style, tie } = look
   const body = jacket || shirt
   const bodyShade = darken(body, 28)
+  // Neutral white/black overlays (not per-color gradients) give every
+  // flat-filled shape a soft round volume -- the "polished HD pixel art"
+  // read (Link's Awakening remake) leans on gentle shading + a warm rim
+  // light, not flat retro color blocking. useId keeps each instance's
+  // <defs> ids collision-free when many Persons share one <svg> root.
+  const uid = useId()
+  const hl = `p-hl-${uid}`
+  const sh = `p-sh-${uid}`
   return (
     <g className={`person ${typing ? 'typing' : ''} ${walking ? 'walking' : ''}`}>
+      <defs>
+        <radialGradient id={hl} cx="0.32" cy="0.28" r="0.75">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={sh} cx="0.68" cy="0.78" r="0.75">
+          <stop offset="0" stopColor="#000" stopOpacity="0.28" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
+        </radialGradient>
+      </defs>
       <ellipse cx={8} cy={seated ? 13.5 : 17.5} rx={6} ry={1.3} fill="#000" opacity={0.22} />
 
       {/* legs -- omitted seated (the chair + desk read as "sitting" on
@@ -39,6 +59,8 @@ export function Person({ look, seated = false, typing = false, walking = false }
 
       {/* torso */}
       <rect x={3.2} y={8.6} width={9.6} height={6.6} rx={3.2} fill={body} />
+      <rect x={3.2} y={8.6} width={9.6} height={6.6} rx={3.2} fill={`url(#${sh})`} />
+      <rect x={3.2} y={8.6} width={9.6} height={6.6} rx={3.2} fill={`url(#${hl})`} />
       {jacket && (
         <>
           {/* lapels: two shaded triangles framing the shirt underneath */}
@@ -62,6 +84,8 @@ export function Person({ look, seated = false, typing = false, walking = false }
       {/* neck + head */}
       <rect x={6.9} y={7.4} width={2.2} height={1.8} fill={skin} />
       <circle cx={8} cy={4.4} r={4.05} fill={skin} />
+      <circle cx={8} cy={4.4} r={4.05} fill={`url(#${sh})`} />
+      <circle cx={8} cy={4.4} r={4.05} fill={`url(#${hl})`} />
       <ellipse cx={6.35} cy={4.6} rx={0.5} ry={0.6} fill="#20242c" />
       <ellipse cx={9.65} cy={4.6} rx={0.5} ry={0.6} fill="#20242c" />
       <path d="M6.5,6.35 q1.5,1.15 3,0" stroke="#00000050" strokeWidth={0.5} fill="none" strokeLinecap="round" />
