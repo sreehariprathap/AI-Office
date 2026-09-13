@@ -6,7 +6,7 @@ import TownMap from './components/TownMap.jsx'
 import Building from './components/Building.jsx'
 import OfficeFloor from './components/OfficeFloor.jsx'
 import { Feed, AgentPanel, ConnectPanel } from './components/Sidebar.jsx'
-import { NewOfficeModal, HireModal, ConnectModal, SourcesModal } from './components/Modals.jsx'
+import { Modal, NewOfficeModal, NewBuildingModal, HireModal, ConnectModal, SourcesModal } from './components/Modals.jsx'
 
 function RealtimeEmpty({ sources, onManage, onMock }) {
   const s = sources[0]
@@ -453,6 +453,24 @@ export default function App() {
       {modal?.type === 'hire' && office && <HireModal api={api} office={office} onClose={() => setModal(null)} onCreated={(a) => select(a.id)} />}
       {modal?.type === 'sources' && <SourcesModal api={api} sources={sources} offices={offices} onClose={() => setModal(null)} onOpenOffice={setView} />}
       {modal?.type === 'connect' && <ConnectModal api={api} agents={agents} offices={offices} fromId={modal.fromId} onClose={() => setModal(null)} />}
+      {modal?.type === 'building' && (
+        <NewBuildingModal
+          api={api}
+          onClose={() => setModal(null)}
+          // `open(b.id)` would re-look-up the building in `buildings`, which
+          // can still be the pre-creation snapshot at this exact instant
+          // (this closure was captured when the modal was opened, before
+          // the POST resolved) -- use the freshly created object directly.
+          onCreated={(b) => (b.kind === 'landmark' ? setModal({ type: 'landmark', building: b }) : setView(b.id))}
+        />
+      )}
+      {modal?.type === 'landmark' && (
+        <Modal title={modal.building.name} onClose={() => setModal(null)}>
+          <div className="pad">
+            <p className="muted">{modal.building.description || 'A landmark. Nothing runs here.'}</p>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

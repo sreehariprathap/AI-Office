@@ -75,6 +75,51 @@ export function NewOfficeModal({ api, buildingSlug, onClose, onCreated }) {
   )
 }
 
+const BUILDING_SPRITES = ['market', 'lab', 'studio', 'cafe', 'gym', 'library', 'post', 'tower']
+
+export function NewBuildingModal({ api, onClose, onCreated }) {
+  const [f, setF] = useState({ name: '', kind: 'workspace', sprite: 'tower', description: '' })
+  const { err, busy, submit } = useSubmit(onClose)
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  return (
+    <Modal title="Add a building" onClose={onClose}>
+      <form
+        className="form"
+        onSubmit={submit(async () => {
+          const b = await api('POST', '/api/buildings', f)
+          onCreated?.(b)
+        })}
+      >
+        <label>Name</label>
+        <input autoFocus required value={f.name} onChange={set('name')} placeholder="Research Lab" />
+
+        <label>Kind</label>
+        <select value={f.kind} onChange={set('kind')}>
+          <option value="workspace">Workspace — holds floors and agents</option>
+          <option value="landmark">Landmark — scenery only</option>
+        </select>
+
+        <label>Look</label>
+        <select value={f.sprite} onChange={set('sprite')}>
+          {BUILDING_SPRITES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+
+        <label>Description</label>
+        <input value={f.description} onChange={set('description')} placeholder="What happens here?" />
+
+        {err && <p className="error">{err}</p>}
+        <button className="primary" disabled={busy}>
+          Add building
+        </button>
+      </form>
+    </Modal>
+  )
+}
+
 export function HireModal({ api, office, onClose, onCreated }) {
   const [f, setF] = useState({ name: '', role: 'worker', title: '', model: 'claude-sonnet-5', host: '', skills: '', heartbeatTtlSec: 0 })
   const { err, busy, submit } = useSubmit(onClose)

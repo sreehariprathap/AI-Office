@@ -108,7 +108,12 @@ export function useHub() {
       const r = await fetch(path, { method, headers: headers(), body: body ? JSON.stringify(body) : undefined })
       const json = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(json.error || r.statusText)
-      if (method !== 'GET') refresh()
+      // Awaited (not fire-and-forget): callers that navigate to what they
+      // just created (e.g. opening a freshly built building or office)
+      // need `buildings`/`offices` to already include it, or the
+      // map/building reset effect below bounces the view back before the
+      // next poll catches up.
+      if (method !== 'GET') await refresh()
       return json
     },
     [refresh],
